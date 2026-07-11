@@ -37,7 +37,7 @@ export default function ImportPage({ onRefresh, userWarehouseCode = null }) {
   }, [phase]);
 
   useEffect(() => {
-    fetch(`${API_BASE}/v1/warehouses`, {
+    fetch(`${API_BASE}/warehouses`, {
       headers: { Authorization: `Bearer ${getToken()}` },
     })
       .then(r => r.json())

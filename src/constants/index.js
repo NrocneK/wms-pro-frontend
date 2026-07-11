@@ -2,7 +2,7 @@ export const WAREHOUSES = ["X1", "XN", "Q1", "N1"];
 export const CATEGORIES = ["Điện tử", "Thực phẩm", "May mặc", "Hóa phẩm", "Thiết bị", "Văn phòng phẩm", "Khác"];
 export const UNITS = ["Cái", "Hộp", "Thùng", "Kg", "Lít", "Mét", "Cuộn"];
 
-export const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3001/api";
+export const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3001/api/v1";
 
 // Danh sách nhà sách liên kết hệ thống kho — mã (ký hiệu) → tên đầy đủ
 export const BOOKSTORES = {

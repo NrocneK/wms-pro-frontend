@@ -46,7 +46,7 @@ export default function Dashboard({ products }) {
   useEffect(() => {
     let active = true;
     setLoadChart(true);
-    fetch(`${API_BASE}/v1/dashboard?week_offset=${weekOffset}&_t=${Date.now()}`, {
+    fetch(`${API_BASE}/dashboard?week_offset=${weekOffset}&_t=${Date.now()}`, {
       headers: { Authorization: `Bearer ${getToken()}` },
     })
       .then(r => r.json())
