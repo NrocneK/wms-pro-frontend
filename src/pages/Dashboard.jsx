@@ -152,7 +152,7 @@ export default function Dashboard({ products }) {
 
   useEffect(() => {
     let active = true;
-    fetch(`${API_BASE}/v1/dashboard/history-dates?limit=15&offset=0`, {
+    fetch(`${API_BASE}/dashboard/history-dates?limit=15&offset=0`, {
       headers: { Authorization: `Bearer ${getToken()}` },
     })
       .then(r => r.json())
@@ -169,7 +169,7 @@ export default function Dashboard({ products }) {
   const loadMoreDates = async () => {
     setLoadingMoreDates(true);
     try {
-      const res = await fetch(`${API_BASE}/v1/dashboard/history-dates?limit=15&offset=${historyDates.length}`, {
+      const res = await fetch(`${API_BASE}/dashboard/history-dates?limit=15&offset=${historyDates.length}`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       const json = await res.json();
@@ -187,7 +187,7 @@ export default function Dashboard({ products }) {
     if (ordersByDate[date]) return;
     setLoadingOrdersFor(date);
     try {
-      const res = await fetch(`${API_BASE}/v1/dashboard/history-orders?date=${date}`, {
+      const res = await fetch(`${API_BASE}/dashboard/history-orders?date=${date}`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       const json = await res.json();
