@@ -1,0 +1,125 @@
+// src/components/layout/Sidebar.jsx
+import Icon from "../ui/Icon";
+
+const NAV_ALL = [
+  { id: "dashboard", label: "Dashboard", icon: "dashboard" },
+  { id: "inventory", label: "Tồn kho", icon: "inventory" },
+  { id: "import", label: "Nhập kho", icon: "import_" },
+  { id: "export", label: "Xuất kho", icon: "export_" },
+  { id: "reports", label: "Báo cáo", icon: "search" },
+];
+const NAV_ADMIN = { id: "users", label: "Người dùng", icon: "warehouse" };
+
+const ROLE_CONFIG = {
+  admin: { label: "Admin", color: "text-danger" },
+  manager: { label: "Quản lý", color: "text-warning" },
+  staff: { label: "Nhân viên", color: "text-primary" },
+};
+
+export default function Sidebar({ page, setPage, sidebarOpen, setSidebar, userRole, mobileMenuOpen = false, setMobileMenuOpen = () => { } }) {
+  const nav = userRole === "admin" ? [...NAV_ALL, NAV_ADMIN] : NAV_ALL;
+  const roleConf = ROLE_CONFIG[userRole] || ROLE_CONFIG.staff;
+  // Trên mobile, drawer khi mở LUÔN hiện đầy đủ nhãn — không áp dụng chế độ
+  // thu gọn icon-only của desktop, vì đây là overlay toàn màn hình
+  const showLabels = sidebarOpen || mobileMenuOpen;
+
+  return (
+    <>
+      {/* Backdrop mờ phía sau drawer — chỉ hiện trên mobile khi đang mở, bấm vào để đóng */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-30 md:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
+      <div className={`
+        fixed md:static inset-y-0 left-0 z-40
+        w-[220px] ${sidebarOpen ? "md:w-[220px]" : "md:w-16"}
+        ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0
+        flex-shrink-0 bg-surface border-r border-border
+        flex flex-col transition-all duration-[250ms] overflow-hidden
+      `}>
+
+        {/* ── Logo ─────────────────────────────────────── */}
+        <div className="px-4 py-5 border-b border-border flex items-center gap-[10px]">
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-white shadow-lg"
+            style={{ background: "linear-gradient(135deg,#6366f1,#3b82f6)" }}
+          >
+            <Icon name="warehouse" size={18} />
+          </div>
+          {showLabels && (
+            <div className="font-extrabold text-sm text-heading whitespace-nowrap tracking-wide">
+              WMS Pro
+            </div>
+          )}
+        </div>
+
+        {/* ── Nav items ────────────────────────────────── */}
+        <nav className="px-2 pt-3 flex-1">
+          {nav.map(n => {
+            const isActive = page === n.id;
+            return (
+              <button
+                key={n.id}
+                onClick={() => { setPage(n.id); setMobileMenuOpen(false); }}
+                title={!showLabels ? n.label : undefined}
+                className={`
+                w-full flex items-center gap-3 px-3 py-[10px]
+                rounded-[9px] border-none border-l-[3px]
+                cursor-pointer mb-0.5 transition-all duration-200
+                ${isActive
+                    ? "border-l-primary text-primary-light"
+                    : "border-l-transparent text-subtle hover:text-label hover:bg-white/[0.04]"
+                  }
+              `}
+                style={isActive
+                  ? { background: "linear-gradient(135deg,rgba(99,102,241,.13),rgba(59,130,246,.07))" }
+                  : { background: "transparent" }
+                }
+              >
+                {/* Icon + alert badge */}
+                <div className="flex-shrink-0 relative">
+                  <Icon name={n.icon} size={18} />
+                </div>
+
+                {/* Label — fade khi collapse */}
+                {showLabels && (
+                  <span className={`text-[13px] whitespace-nowrap ${isActive ? "font-bold" : "font-medium"}`}>
+                    {n.label}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* ── Role badge ───────────────────────────────── */}
+        {showLabels && (
+          <div className="px-4 pb-[10px]">
+            <div className="bg-border rounded-lg px-[10px] py-[6px] text-[11px] text-center">
+              <span className={`font-semibold ${roleConf.color}`}>
+                ● {roleConf.label}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* ── Collapse toggle ──────────────────────────── */}
+        <button
+          onClick={() => setSidebar(o => !o)}
+          className="
+          hidden md:flex
+          mx-2 mb-4 bg-border border-none rounded-[9px] p-[10px]
+          text-subtle cursor-pointer items-center justify-center
+          hover:bg-muted hover:text-label transition-colors duration-200
+        "
+          title={sidebarOpen ? "Thu gọn" : "Mở rộng"}
+        >
+          <Icon name="menu" size={16} />
+        </button>
+      </div>
+    </>
+  );
+}

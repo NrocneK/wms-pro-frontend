@@ -1,0 +1,135 @@
+@import "tailwindcss";
+
+/* ── Design Tokens ─────────────────────────────── */
+@theme {
+    /* Background scale */
+    --color-app: #060b14;
+    --color-surface: #0a0f1a;
+    --color-card: #0f172a;
+    --color-border: #1e293b;
+    --color-muted: #334155;
+
+    /* Text scale */
+    --color-dim: #475569;
+    --color-subtle: #64748b;
+    --color-label: #94a3b8;
+    --color-body: #e2e8f0;
+    --color-heading: #f1f5f9;
+
+    /* Brand */
+    --color-primary: #6366f1;
+    --color-primary-light: #818cf8;
+    --color-primary-dark: #4f46e5;
+
+    /* Semantic */
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-danger: #ef4444;
+    --color-info: #3b82f6;
+    --color-export: #f97316;
+
+    /* Typography */
+    --font-sans: 'Sora', 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+
+    /* Border radius */
+    --radius-sm: 6px;
+    --radius: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 18px;
+
+    --breakpoint-xs: 380px;
+    --breakpoint-wide: 1080px;
+}
+
+/* ── Global base ───────────────────────────────── */
+@layer base {
+
+    *,
+    *::before,
+    *::after {
+        box-sizing: border-box;
+    }
+
+    html {
+        scroll-behavior: smooth;
+    }
+
+    body {
+        background-color: #060b14;
+        color: #f1f5f9;
+        font-family: 'Sora', 'Segoe UI', sans-serif;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: #0a0f1a;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: #334155;
+        border-radius: 99px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: #475569;
+    }
+
+    /* Text selection */
+    ::selection {
+        background: rgba(99, 102, 241, 0.3);
+        color: #f1f5f9;
+    }
+
+    /* Focus ring */
+    :focus-visible {
+        outline: 2px solid #6366f1;
+        outline-offset: 2px;
+        border-radius: 4px;
+    }
+}
+
+/* ── Utility shorthands ────────────────────────── */
+@layer utilities {
+    .card {
+        background: #0f172a;
+        border: 1px solid #1e293b;
+        border-radius: 14px;
+    }
+
+    .card-hover {
+        transition: border-color 200ms, box-shadow 200ms;
+    }
+
+    .card-hover:hover {
+        border-color: rgba(99, 102, 241, 0.3);
+        box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.1), 0 4px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 10px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .glow-primary {
+        box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+    }
+
+    .glow-success {
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
+    }
+
+    .glow-danger {
+        box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
+    }
+}
