@@ -1,10 +1,22 @@
 // src/pages/Inventory.jsx
 import { useState, useEffect, useRef } from "react";
+import * as XLSX from "xlsx";
 import Icon from "../components/ui/Icon";
 import { Btn, Field, Inp, Sel, Modal, Pagination, AlertModal, ConfirmModal } from "../components/ui";
-import { fmtNum, fmtCur } from "../utils/helpers";
+import { fmtNum, fmtCur, fmtCompact } from "../utils/helpers";
 import { WAREHOUSES, UNITS } from "../constants";
 import { inventoryApi } from "../api/client";
+
+const downloadInventoryTemplate = () => {
+  const ws = XLSX.utils.aoa_to_sheet([
+    ["Barcode", "Tên sản phẩm", "Số lượng", "Vị trí", "Kho", "Giá vốn"],
+    ["893500182997", "Tên sản phẩm mẫu", 100, "C2.3", WAREHOUSES[0], 15000],
+  ]);
+  ws["!cols"] = [{ wch: 20 }, { wch: 35 }, { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 14 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Tồn kho");
+  XLSX.writeFile(wb, "mau_ton_kho.xlsx");
+};
 
 // ── ProductForm modal ─────────────────────────
 function ProductForm({ initial, onClose, onSave }) {
@@ -247,15 +259,22 @@ export default function Inventory({ onRefresh, canEdit = false, refreshKey = 0, 
           width={700}
         >
           {/* Stats */}
-          <div className="grid grid-cols-4 gap-[10px] mb-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-[10px] mb-5">
             {[
               { label: "Tổng SP", value: excelPreview.total_rows, color: "#6366f1" },
               { label: "Tổng SL", value: fmtNum(excelPreview.total_qty), color: "#10b981" },
-              { label: "SL = 0", value: excelPreview.zero_qty, color: "#f59e0b" },
-              { label: "Chưa có vị trí", value: excelPreview.no_location, color: "#ef4444" },
-            ].map((s, i) => (
-              <div key={i} className="bg-border rounded-[10px] p-[12px_14px] text-center">
-                <div className="text-[22px] font-extrabold" style={{ color: s.color }}>{s.value}</div>
+              { label: "Tổng giá trị", value: fmtCompact(excelPreview.total_value || 0), color: "#8b5cf6", title: fmtCur(excelPreview.total_value || 0) },
+              excelPreview.zero_qty > 0 && { label: "SL = 0", value: excelPreview.zero_qty, color: "#f59e0b" },
+              excelPreview.no_location > 0 && { label: "Chưa có vị trí", value: excelPreview.no_location, color: "#ef4444" },
+            ].filter(Boolean).map((s, i) => (
+              <div key={i} className="bg-border rounded-[10px] p-[12px_10px] text-center">
+                <div
+                  className="text-[19px] font-extrabold whitespace-nowrap"
+                  style={{ color: s.color }}
+                  title={s.title}
+                >
+                  {s.value}
+                </div>
                 <div className="text-[11px] text-subtle mt-1">{s.label}</div>
               </div>
             ))}
@@ -286,8 +305,13 @@ export default function Inventory({ onRefresh, canEdit = false, refreshKey = 0, 
             <table className="w-full border-collapse text-xs">
               <thead>
                 <tr className="bg-border">
-                  {["Barcode", "Tên sản phẩm", "Số lượng", "Vị trí", "Kho"].map(h => (
-                    <th key={h} className="p-[8px_12px] text-label text-left font-bold text-[10px]">{h}</th>
+                  {["Barcode", "Tên sản phẩm", "Số lượng", "Vị trí", "Kho", "Giá vốn"].map(h => (
+                    <th
+                      key={h}
+                      className={`p-[8px_12px] text-label font-bold text-[10px] ${h === "Giá vốn" ? "text-right" : "text-left"}`}
+                    >
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -299,6 +323,7 @@ export default function Inventory({ onRefresh, canEdit = false, refreshKey = 0, 
                     <td className="p-[8px_12px] text-success font-bold text-center">{fmtNum(r.quantity)}</td>
                     <td className="p-[8px_12px] text-warning font-mono">{r.location || "—"}</td>
                     <td className="p-[8px_12px] text-primary-light font-bold">{r.warehouse}</td>
+                    <td className="p-[8px_12px] text-label text-right">{r.cost_price > 0 ? fmtCur(r.cost_price) : "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -360,6 +385,11 @@ export default function Inventory({ onRefresh, canEdit = false, refreshKey = 0, 
         {canEdit && (
           <Btn onClick={() => excelRef.current.click()} color="#10b981" outline>
             <Icon name="excel" size={15} /> Import Excel
+          </Btn>
+        )}
+        {canEdit && (
+          <Btn onClick={downloadInventoryTemplate} color="#334155" outline>
+            <Icon name="excel" size={15} /> Tải file mẫu
           </Btn>
         )}
       </div>

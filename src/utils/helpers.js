@@ -5,6 +5,15 @@ export const today = () => {
 export const fmtDate = (d) => { try { return new Date(d).toLocaleDateString("vi-VN"); } catch { return d || ""; } };
 export const fmtNum = (n) => Number(n || 0).toLocaleString("vi-VN");
 export const fmtCur = (n) => Number(n || 0).toLocaleString("vi-VN", { style: "currency", currency: "VND" });
+export const fmtCompact = (value) => {
+  if (value >= 1_000_000_000) {
+    return (value / 1_000_000_000).toFixed(2).replace(".", ",") + "B đ";
+  }
+  if (value >= 1_000_000) {
+    return (value / 1_000_000).toFixed(2).replace(".", ",") + "M đ";
+  }
+  return fmtCur(value);
+};
 export const daysDiff = (dateStr) => {
   if (!dateStr) return 9999;
   return Math.floor((Date.now() - new Date(dateStr)) / (1000 * 60 * 60 * 24));

@@ -3,10 +3,14 @@ import Icon from "./Icon";
 
 // ── Modal ────────────────────────────────────
 export const Modal = ({ title, onClose, children, width = 680 }) => (
-  <div className="fixed inset-0 bg-black/65 backdrop-blur-[4px] z-[1000] flex items-center justify-center p-4">
+  <div
+    className="fixed inset-0 bg-black/65 backdrop-blur-[4px] z-[1000] flex items-center justify-center p-4"
+    onClick={onClose}
+  >
     <div
       className="bg-card border border-border rounded-2xl w-full max-h-[90vh] overflow-y-auto"
       style={{ maxWidth: width, boxShadow: "0 24px 80px rgba(0,0,0,.6)" }}
+      onClick={e => e.stopPropagation()}
     >
       <div className="flex items-center justify-between px-6 py-5 border-b border-border">
         <h3 className="m-0 text-[17px] font-bold text-heading">{title}</h3>
@@ -206,8 +210,8 @@ export const Pagination = ({ page, totalPages, onChange }) => {
             key={p}
             onClick={() => onChange(p)}
             className={`min-w-[34px] h-[34px] px-[10px] rounded-[7px] border text-[13px] flex items-center justify-center cursor-pointer transition-colors duration-150 ${p === page
-                ? "border-primary bg-primary text-white font-bold"
-                : "border-border bg-transparent text-subtle hover:text-label"
+              ? "border-primary bg-primary text-white font-bold"
+              : "border-border bg-transparent text-subtle hover:text-label"
               }`}
           >
             {p}

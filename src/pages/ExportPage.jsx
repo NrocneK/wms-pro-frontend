@@ -9,7 +9,7 @@ import { bookstoreName } from "../constants";
 
 const downloadTemplate = () => {
   const ws = XLSX.utils.aoa_to_sheet([
-    ["Ngày", "Số phiếu xuất (7 số)", "Mã hàng (barcode)", "Tên sản phẩm", "Số lượng", "Đơn giá xuất", "Đối tác"],
+    ["Ngày", "Số phiếu xuất (7 số)", "Mã hàng (barcode)", "Tên sản phẩm", "Số lượng", "Đơn giá xuất", "Nhà sách"],
     [today(), "2000001", "893500182997", "Tên sản phẩm mẫu", 5, 0, "Fahasa"],
   ]);
   ws["!cols"] = [{ wch: 12 }, { wch: 22 }, { wch: 22 }, { wch: 35 }, { wch: 12 }, { wch: 16 }, { wch: 18 }];
@@ -21,7 +21,7 @@ const downloadTemplate = () => {
 const downloadPickSlipExcel = (slip) => {
   const rows = [
     ["PHIẾU TÌM HÀNG", "", "", "", "", ""],
-    ["Đối tác:", slip.partner, "Ngày:", slip.date, "", ""],
+    ["Nhà sách:", slip.partner, "Ngày:", slip.date, "", ""],
     [""],
     ["STT", "Số phiếu xuất", "Mã hàng (Barcode)", "Tên sản phẩm", "Số lượng", "Vị trí"],
     ...slip.items.map((r, i) => [i + 1, r.itemRefNo, r.barcode, r.name, r.quantity, r.location || "—"]),
@@ -30,48 +30,74 @@ const downloadPickSlipExcel = (slip) => {
   ws["!cols"] = [{ wch: 6 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 35 }, { wch: 10 }, { wch: 16 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Phiếu tìm hàng");
-  XLSX.writeFile(wb, `phieu_tim_hang_${slip.partner}_${slip.date}.xlsx`);
+  XLSX.writeFile(wb, `phieu_tim_hang_${slip.date}.xlsx`);
+};
+
+const loadScript = (src) => new Promise((res, rej) => {
+  const s = document.createElement("script");
+  s.src = src; s.onload = res; s.onerror = rej;
+  document.head.appendChild(s);
+});
+
+const arrayBufferToBase64 = (buffer) => {
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+};
+
+let vnFontLoaded = false;
+const registerVietnameseFont = async (doc) => {
+  const [regularBuf, boldBuf] = await Promise.all([
+    fetch("https://cdn.jsdelivr.net/gh/googlefonts/roboto-2@main/src/hinted/Roboto-Regular.ttf").then(r => {
+      if (!r.ok) throw new Error("Không tải được font Roboto-Regular (HTTP " + r.status + ")");
+      return r.arrayBuffer();
+    }),
+    fetch("https://cdn.jsdelivr.net/gh/googlefonts/roboto-2@main/src/hinted/Roboto-Bold.ttf").then(r => {
+      if (!r.ok) throw new Error("Không tải được font Roboto-Bold (HTTP " + r.status + ")");
+      return r.arrayBuffer();
+    }),
+  ]);
+  doc.addFileToVFS("Roboto-Regular.ttf", arrayBufferToBase64(regularBuf));
+  doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
+  doc.addFileToVFS("Roboto-Bold.ttf", arrayBufferToBase64(boldBuf));
+  doc.addFont("Roboto-Bold.ttf", "Roboto", "bold");
+  vnFontLoaded = true;
 };
 
 const downloadPickSlipPDF = async (slip) => {
-  if (!window.jspdf) {
-    await new Promise((res, rej) => {
-      const s = document.createElement("script");
-      s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-      s.onload = res; s.onerror = rej;
-      document.head.appendChild(s);
-    });
-  }
+  if (!window.jspdf) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
   if (!window.jspdf?.jsPDF?.prototype?.autoTable) {
-    await new Promise((res, rej) => {
-      const s = document.createElement("script");
-      s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js";
-      s.onload = res; s.onerror = rej;
-      document.head.appendChild(s);
-    });
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js");
   }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  doc.setFontSize(16); doc.setFont("helvetica", "bold");
-  doc.text("PHIEU TIM HANG / PICK SLIP", 105, 16, { align: "center" });
-  doc.setFontSize(11); doc.setFont("helvetica", "normal");
+  if (!vnFontLoaded) await registerVietnameseFont(doc);
+  else {
+    // Font đã tải ở lần trước, chỉ cần đăng ký lại vào instance doc mới (mỗi lần new jsPDF() là instance mới)
+    await registerVietnameseFont(doc);
+  }
+
+  doc.setFontSize(16); doc.setFont("Roboto", "bold");
+  doc.text("PHIẾU TÌM HÀNG / PICK SLIP", 105, 16, { align: "center" });
+  doc.setFontSize(11); doc.setFont("Roboto", "normal");
   doc.text(`Kho: ${slip.warehouse}`, 14, 26);
-  doc.text(`Ngay: ${slip.date}`, 14, 32);
-  doc.text(`Tong so dong: ${slip.items.length}`, 14, 38);
+  doc.text(`Ngày: ${slip.date}`, 14, 32);
+  doc.text(`Tổng số dòng: ${slip.items.length}`, 14, 38);
   doc.setLineWidth(0.4); doc.line(14, 42, 196, 42);
   doc.autoTable({
     startY: 46,
-    head: [["STT", "So phieu xuat", "Doi tac", "Ma hang", "Ten hang", "So luong", "Vi tri"]],
+    head: [["STT", "Số phiếu xuất", "Nhà sách", "Mã hàng", "Tên hàng", "Số lượng", "Vị trí"]],
     body: slip.items.map((r, i) => [i + 1, r.itemRefNo, r.nhaSach || "—", r.barcode, r.name, String(r.quantity), r.location || "—"]),
-    styles: { fontSize: 9, cellPadding: 2.5 },
-    headStyles: { fillColor: [99, 102, 241], textColor: 255, fontStyle: "bold" },
+    styles: { font: "Roboto", fontSize: 9, cellPadding: 2.5 },
+    headStyles: { font: "Roboto", fontStyle: "bold", fillColor: [99, 102, 241], textColor: 255 },
     alternateRowStyles: { fillColor: [240, 242, 255] },
-    columnStyles: { 0: { cellWidth: 10 }, 1: { cellWidth: 28 }, 2: { cellWidth: 26 }, 3: { cellWidth: 28 }, 4: { cellWidth: 48 }, 5: { cellWidth: 15 }, 6: { cellWidth: 25 } },
+    columnStyles: { 0: { cellWidth: 14 }, 1: { cellWidth: 28 }, 2: { cellWidth: 18 }, 3: { cellWidth: 28 }, 4: { cellWidth: 48 }, 5: { cellWidth: 20 }, 6: { cellWidth: 25 } },
   });
   const y = doc.lastAutoTable.finalY + 10;
-  doc.setFontSize(9); doc.setFont("helvetica", "italic");
-  doc.text("Nguoi lay hang: _______________    Ky ten: _______________", 14, y);
-  doc.save(`phieu_tim_hang_${slip.partner}_${slip.date}.pdf`);
+  doc.setFontSize(9); doc.setFont("Roboto", "normal");
+  doc.text("Người lấy hàng: _______________    Ký tên: _______________", 14, y);
+  doc.save(`phieu_tim_hang_${slip.date}.pdf`);
 };
 
 // ── Pick Slip Modal — giữ nguyên mã ký hiệu, không đổi ─────────
@@ -91,29 +117,39 @@ function PickSlipModal({ slip, onClose }) {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-xs">
+          <table className="w-full border-collapse text-xs table-fixed">
+            <colgroup>
+              <col style={{ width: "5%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "8%" }} />
+              <col style={{ width: "13%" }} />
+              <col style={{ width: "32%" }} />
+              <col style={{ width: "8%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "12%" }} />
+            </colgroup>
             <thead>
               <tr className="bg-primary">
-                {["STT", "Số phiếu xuất", "Đối tác", "Mã hàng", "Tên sản phẩm", "Số lượng", "Vị trí", "Ghi chú"].map(h => (
-                  <th key={h} className="p-[9px_10px] text-white text-left font-bold">{h}</th>
+                {["STT", "Số phiếu xuất", "Nhà sách", "Mã hàng", "Tên sản phẩm", "Số lượng", "Vị trí", "Ghi chú"].map(h => (
+                  <th key={h} className="p-[10px_12px] text-white text-left font-bold">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {slip.items.map((r, i) => (
                 <tr key={i} className={`border-b border-app ${i % 2 === 0 ? "" : "bg-border"}`}>
-                  <td className="p-[8px_10px] text-subtle">{i + 1}</td>
-                  <td className="p-[8px_10px] font-mono text-export font-bold">{r.itemRefNo}</td>
-                  <td className="p-[8px_10px] text-label text-xs">{r.nhaSach || "—"}</td>
-                  <td className="p-[8px_10px] font-mono text-primary font-bold">{r.barcode}</td>
-                  <td className="p-[8px_10px] text-body max-w-[200px]">{r.name}</td>
-                  <td className="p-[8px_10px] text-success font-extrabold text-center">{fmtNum(r.quantity)}</td>
-                  <td className="p-[8px_10px]">
+                  <td className="p-[10px_12px] text-subtle">{i + 1}</td>
+                  <td className="p-[10px_12px] font-mono text-export font-bold">{r.itemRefNo}</td>
+                  <td className="p-[10px_12px] text-label text-xs">{r.nhaSach || "—"}</td>
+                  <td className="p-[10px_12px] font-mono text-primary font-bold">{r.barcode}</td>
+                  <td className="p-[10px_12px] text-body max-w-[200px]">{r.name}</td>
+                  <td className="p-[10px_12px] text-success font-extrabold text-center">{fmtNum(r.quantity)}</td>
+                  <td className="p-[10px_12px]">
                     {r.location
                       ? <span className="bg-warning/[0.13] text-warning rounded-[6px] px-2 py-[2px] font-mono text-[11px]">{r.location}</span>
                       : <span className="text-danger text-[11px]">Chưa có</span>}
                   </td>
-                  <td className="p-[8px_10px] text-subtle text-[11px]">{r.note || "—"}</td>
+                  <td className="p-[10px_12px] text-subtle text-[11px]">{r.note || "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -168,6 +204,7 @@ export default function ExportPage({ onRefresh }) {
   const [ticketItems, setTicketItems] = useState({});         // cache Cấp 3: {key: [...items]}
   const [loadingItems, setLoadingItems] = useState(null);
   const [savingQty, setSavingQty] = useState(null);
+  const [reprinting, setReprinting] = useState(null);
 
   const loadPackingBatches = () => {
     let active = true;
@@ -268,6 +305,52 @@ export default function ExportPage({ onRefresh }) {
       },
       { title: "Hủy phiếu đang soạn", confirmLabel: "Hủy phiếu", confirmColor: "#ef4444" }
     );
+  };
+
+  const reprintBatch = async (batch) => {
+    setReprinting(batch.id);
+    try {
+      const tickets = batchTickets[batch.id] || await exportApi.getBatchTickets(batch.id);
+      if (!batchTickets[batch.id]) {
+        setBatchTickets(prev => ({ ...prev, [batch.id]: tickets || [] }));
+      }
+
+      const allItems = [];
+      for (const ticket of (tickets || [])) {
+        const key = `${batch.id}-${ticket.ref_no}`;
+        const items = ticketItems[key] || await exportApi.getTicketItems(batch.id, ticket.ref_no);
+        if (!ticketItems[key]) {
+          setTicketItems(prev => ({ ...prev, [key]: items || [] }));
+        }
+        (items || []).forEach(it => {
+          allItems.push({
+            itemRefNo: ticket.ref_no,
+            nhaSach: ticket.bookstore,
+            barcode: it.barcode,
+            name: it.product_name,
+            quantity: it.quantity_requested,
+            location: it.location_text,
+          });
+        });
+      }
+
+      if (allItems.length === 0) {
+        showAlert("Phiếu soạn này không có sản phẩm nào.", "warning");
+        return;
+      }
+
+      const sorted = allItems.sort((a, b) => String(a.itemRefNo).localeCompare(String(b.itemRefNo), undefined, { numeric: true }));
+      setPickSlip({
+        date: fmtDate(batch.export_date),
+        partner: [...new Set(sorted.map(r => r.nhaSach).filter(Boolean))].join(", "),
+        warehouse: batch.warehouse_code || "—",
+        items: sorted,
+      });
+    } catch (err) {
+      showAlert("Không tải được phiếu soạn: " + err.message);
+    } finally {
+      setReprinting(null);
+    }
   };
 
   // ── Tải & xem trước Excel (giữ nguyên logic gốc) ─────────────
@@ -401,7 +484,7 @@ export default function ExportPage({ onRefresh }) {
           </div>
           <div className="text-base font-bold text-heading mb-2">Chọn file Excel phiếu xuất</div>
           <div className="text-[13px] text-subtle mb-5">
-            Cột yêu cầu: <strong className="text-label">Ngày · Số phiếu xuất · Mã hàng · Tên sản phẩm · Số lượng · Đối tác</strong>
+            Cột yêu cầu: <strong className="text-label">Ngày · Số phiếu xuất · Mã hàng · Tên sản phẩm · Số lượng · Nhà sách</strong>
           </div>
           <div className="flex gap-[10px] justify-center flex-wrap">
             <Btn onClick={() => fileRef.current.click()} color="#f97316" style={{ padding: "11px 26px" }}>
@@ -453,7 +536,7 @@ export default function ExportPage({ onRefresh }) {
               <table className="w-full border-collapse text-xs min-w-[860px]">
                 <thead>
                   <tr className="bg-border">
-                    {["#", "Mã phiếu", "Barcode", "Tên sản phẩm", "SL xuất", "Đơn giá", "Thành tiền", "Tồn kho", "Đối tác", "Vị trí", "Trạng thái"].map(h => (
+                    {["#", "Mã phiếu", "Barcode", "Tên sản phẩm", "SL xuất", "Đơn giá", "Thành tiền", "Tồn kho", "Nhà sách", "Vị trí", "Trạng thái"].map(h => (
                       <th key={h} className={`p-[10px_12px] text-label font-bold text-[10px] tracking-[0.5px] whitespace-nowrap ${["Đơn giá", "Thành tiền"].includes(h) ? "text-right" : "text-left"}`}>
                         {h}
                       </th>
@@ -659,6 +742,13 @@ export default function ExportPage({ onRefresh }) {
 
                           {/* Hành động áp dụng cho CẢ phiếu soạn */}
                           <div className="flex gap-2 justify-end flex-wrap">
+                            <Btn
+                              onClick={() => reprintBatch(batch)}
+                              color="#6366f1" outline style={{ padding: "8px 16px" }}
+                              disabled={reprinting === batch.id}
+                            >
+                              <Icon name="pdf" size={14} /> {reprinting === batch.id ? "Đang tải..." : "Xem/In phiếu"}
+                            </Btn>
                             <Btn onClick={() => cancelBatchAction(batch)} color="#ef4444" outline style={{ padding: "8px 16px" }}>
                               <Icon name="close" size={14} /> Hủy phiếu soạn
                             </Btn>

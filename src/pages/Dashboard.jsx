@@ -28,7 +28,7 @@ const niceCeil = (n) => {
 
 const BAR_H = 130;
 
-export default function Dashboard({ products }) {
+export default function Dashboard({ products, onViewAlerts }) {
   const totalSKU = products.length;
   const totalValue = products.reduce((s, p) => s + p.quantity * p.costPrice, 0);
   const lowStock = products.filter(p => p.status === "low" || p.status === "zero").length;
@@ -130,7 +130,7 @@ export default function Dashboard({ products }) {
   const kpis = [
     { label: "Tổng SKU", value: fmtNum(dashData.kpi?.total_skus ?? totalSKU), sub: `${dashData.kpi?.total_warehouses ?? WAREHOUSES.length} kho`, icon: "inventory", c: "#6366f1" },
     { label: "Giá trị tồn", value: fmtCur(dashData.kpi?.total_stock_value ?? totalValue), sub: "Toàn hệ thống", icon: "warehouse", c: "#10b981" },
-    { label: "Cảnh báo", value: fmtNum(lowStock), sub: `+${warnStock} sắp hết`, icon: "alert", c: "#ef4444" },
+    { label: "Cảnh báo", value: fmtNum(lowStock), sub: `+${warnStock} sắp hết`, icon: "alert", c: "#ef4444", onClick: onViewAlerts },
     { label: "Nhập hôm nay", value: fmtNum(todayImp), sub: `${todayExp} phiếu xuất`, icon: "import_", c: "#3b82f6" },
   ];
 
@@ -226,7 +226,12 @@ export default function Dashboard({ products }) {
       {/* ── KPI Cards ─────────────────────────────────── */}
       <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))" }}>
         {kpis.map((k, i) => (
-          <div key={i} className="card card-hover p-4 md:p-[22px] relative overflow-hidden cursor-default">
+          <div
+            key={i}
+            onClick={k.onClick}
+            className={`card card-hover p-4 md:p-[22px] relative overflow-hidden ${k.onClick ? "cursor-pointer" : "cursor-default"}`}
+            title={k.onClick ? "Xem danh sách sản phẩm cần xử lý" : undefined}
+          >
             <div className="absolute top-4 right-4 w-10 h-10 rounded-[10px] flex items-center justify-center"
               style={{ background: k.c + "22", color: k.c }}>
               <Icon name={k.icon} size={20} />
