@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { BrowserRouter, useNavigate, useLocation } from "react-router-dom";
 import Sidebar from "./components/layout/Sidebar";
+import AccountModal from "./components/layout/AccountModal";
 import Icon from "./components/ui/Icon";
 import LoginPage from "./pages/LoginPage";
 import Dashboard from "./pages/Dashboard";
@@ -76,6 +77,7 @@ function AppInner() {
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState("");
   const [reportDefaultTab, setReportDefaultTab] = useState(null);
+  const [showAccountModal, setShowAccountModal] = useState(false);
   const [now, setNow] = useState(new Date());
 
   const refreshTimerRef = useRef(null);
@@ -309,33 +311,58 @@ function AppInner() {
               </div>
             )}
 
-            {/* User info + logout */}
+            {/* User info */}
             <div className="flex items-center gap-2 pl-1">
-              <div className="text-right">
-                <div className="text-[13px] font-semibold text-heading">
-                  {user.full_name}
+              <button
+                onClick={() => setShowAccountModal(true)}
+                title="Tài khoản của tôi"
+                className="flex items-center gap-2 bg-transparent border-none cursor-pointer p-1 rounded-lg hover:bg-white/[0.05] transition-colors duration-150"
+              >
+                <div className="text-right">
+                  <div className="text-[13px] font-semibold text-heading">
+                    {user.full_name}
+                  </div>
+                  <div className="text-[11px] text-subtle">
+                    {ROLE_LABELS_DISPLAY[user.role] || user.role}
+                  </div>
                 </div>
-                <div className="text-[11px] text-subtle">
-                  {ROLE_LABELS_DISPLAY[user.role] || user.role}
+                <div
+                  className="
+        w-[34px] h-[34px] rounded-[9px]
+        flex items-center justify-center
+        text-sm font-extrabold text-white
+        flex-shrink-0
+      "
+                  style={{
+                    background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
+                  }}
+                >
+                  {user.full_name?.[0]?.toUpperCase() || "A"}
                 </div>
-              </div>
+              </button>
               <button
                 onClick={handleLogout}
                 title="Đăng xuất"
                 className="
-                  w-[34px] h-[34px] rounded-[9px]
-                  flex items-center justify-center
-                  text-sm font-extrabold text-white cursor-pointer
-                  border-none transition-opacity duration-200
-                  hover:opacity-80 active:opacity-60
-                "
-                style={{
-                  background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
-                }}
+      w-[34px] h-[34px] rounded-[9px]
+      flex items-center justify-center
+      text-label cursor-pointer
+      border-none bg-border
+      hover:bg-danger/[0.15] hover:text-danger
+      transition-colors duration-150
+    "
               >
-                {user.full_name?.[0]?.toUpperCase() || "A"}
+                <Icon name="logout" size={16} />
               </button>
             </div>
+
+            {showAccountModal && (
+              <AccountModal
+                user={user}
+                onClose={() => setShowAccountModal(false)}
+                onUpdated={(updatedUser) => setUser(updatedUser)}
+              />
+            )}
           </div>
         </header>
 

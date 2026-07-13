@@ -1,9 +1,8 @@
 // src/pages/Reports.jsx
 import { useState, useMemo, useEffect } from "react";
 import Icon from "../components/ui/Icon";
-import { TypeBadge } from "../components/ui";
 import { fmtNum, fmtCur, fmtDate, applyZeroReclaim } from "../utils/helpers";
-import { WAREHOUSES, CATEGORIES } from "../constants";
+import { WAREHOUSES } from "../constants";
 import { inventoryApi, auditApi } from "../api/client";
 import { bookstoreName } from "../constants";
 
@@ -30,13 +29,6 @@ export default function Reports({ products, transactions, defaultTab = null }) {
   const lowItems = displayed
     .filter(p => p.status !== "ok")
     .sort((a, b) => (a.quantity / Math.max(a.minStock, 1)) - (b.quantity / Math.max(b.minStock, 1)));
-
-  const byCat = CATEGORIES.map(c => ({
-    name: c,
-    count: displayed.filter(p => p.category === c).length,
-    qty: displayed.filter(p => p.category === c).reduce((s, p) => s + p.quantity, 0),
-    value: displayed.filter(p => p.category === c).reduce((s, p) => s + p.quantity * p.costPrice, 0),
-  })).filter(c => c.count > 0).sort((a, b) => b.value - a.value);
 
   useEffect(() => {
     if (tab !== "users") return;
@@ -65,8 +57,6 @@ export default function Reports({ products, transactions, defaultTab = null }) {
   const tabs = [
     { id: "stock", label: "Tổng quan" },
     { id: "alerts", label: `Cảnh báo · ${lowItems.length}` },
-    { id: "category", label: "Danh mục" },
-    { id: "txn", label: "Lịch sử" },
     { id: "users", label: "Hoạt động" },
     { id: "audit", label: "Nhật ký" },
   ];
@@ -193,155 +183,6 @@ export default function Reports({ products, transactions, defaultTab = null }) {
             ))}
             {lowItems.length === 0 && (
               <div className="text-center text-muted text-sm py-8">Không có cảnh báo — tồn kho đang ổn định 🎉</div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* ── Danh mục ───────────────────────────── */}
-      {tab === "category" && (
-        <>
-          <div className="card overflow-hidden hidden wide:block">
-            <table className="w-full border-collapse text-[13px]">
-              <thead><tr className="bg-border">
-                {["Danh mục", "SKU", "Tổng SL", "Giá trị tồn kho", "% Giá trị"].map(h => (
-                  <th key={h} className={TH}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {byCat.map((c, i) => {
-                  const tot = byCat.reduce((s, x) => s + x.value, 0);
-                  const pct = tot ? Math.round((c.value / tot) * 100) : 0;
-                  return (
-                    <tr key={c.name} className={`border-b border-border ${i % 2 === 0 ? "" : "bg-[#0a101a]"}`}>
-                      <td className="p-[10px_12px] text-body font-semibold">{c.name}</td>
-                      <td className="p-[10px_12px] text-primary font-bold">{c.count}</td>
-                      <td className="p-[10px_12px] text-label">{fmtNum(c.qty)}</td>
-                      <td className="p-[10px_12px] text-success font-bold">{fmtCur(c.value)}</td>
-                      <td className="p-[10px_12px]">
-                        <div className="flex items-center gap-2">
-                          <div className="bg-border rounded h-[6px] flex-1 overflow-hidden">
-                            <div className="bg-primary h-full rounded" style={{ width: `${pct}%` }} />
-                          </div>
-                          <span className="text-primary font-bold text-xs min-w-[32px]">{pct}%</span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="wide:hidden space-y-3">
-            {byCat.map((c) => {
-              const tot = byCat.reduce((s, x) => s + x.value, 0);
-              const pct = tot ? Math.round((c.value / tot) * 100) : 0;
-              return (
-                <div key={c.name} className="card p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-body font-semibold text-sm">{c.name}</span>
-                    <span className="text-primary font-bold text-xs">{pct}%</span>
-                  </div>
-                  <div className="bg-border rounded h-[6px] overflow-hidden mb-3">
-                    <div className="bg-primary h-full rounded" style={{ width: `${pct}%` }} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
-                    <div>
-                      <div className="text-[10px] text-dim uppercase tracking-wide mb-[2px]">SKU</div>
-                      <div className="text-primary font-bold">{c.count}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-dim uppercase tracking-wide mb-[2px]">Tổng SL</div>
-                      <div className="text-label">{fmtNum(c.qty)}</div>
-                    </div>
-                    <div className="col-span-2">
-                      <div className="text-[10px] text-dim uppercase tracking-wide mb-[2px]">Giá trị tồn kho</div>
-                      <div className="text-success font-bold">{fmtCur(c.value)}</div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-            {byCat.length === 0 && (
-              <div className="text-center text-muted text-sm py-8">Chưa có dữ liệu danh mục</div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* ── Lịch sử giao dịch ──────────────────── */}
-      {tab === "txn" && (
-        <>
-          <div className="card overflow-hidden hidden wide:block">
-            <table className="w-full border-collapse text-xs">
-              <thead><tr className="bg-border">
-                {["Mã phiếu", "Loại", "Tên sản phẩm", "Barcode", "SL", "Đối tác", "Kho", "Vị trí", "Ngày"].map(h => (
-                  <th key={h} className="text-left p-[10px_11px] text-subtle font-semibold text-[10px] tracking-[0.5px] whitespace-nowrap">{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {transactions.slice(0, 60).map((t, i) => (
-                  <tr key={t.id} className={`border-b border-border ${i % 2 === 0 ? "" : "bg-[#0a101a]"}`}>
-                    <td className="p-[9px_11px] font-mono font-bold text-[11px]" style={{ color: t.type === "import" ? "#3b82f6" : "#f97316" }}>{t.refNo}</td>
-                    <td className="p-[9px_11px]"><TypeBadge type={t.type} /></td>
-                    <td className="p-[9px_11px] text-body max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap">{t.productName}</td>
-                    <td className="p-[9px_11px] font-mono text-subtle text-[11px]">{t.barcode}</td>
-                    <td className="p-[9px_11px] font-bold" style={{ color: t.type === "import" ? "#10b981" : "#ef4444" }}>
-                      {t.type === "import" ? "+" : "-"}{fmtNum(t.quantity)}
-                    </td>
-                    <td className="p-[9px_11px] text-label text-[11px]">{t.partner}</td>
-                    <td className="p-[9px_11px] text-label text-[11px]">{t.warehouse}</td>
-                    <td className="p-[9px_11px]">
-                      <span className="bg-border rounded-[6px] px-[7px] py-[2px] font-mono text-[10px] text-warning">{t.location || "—"}</span>
-                    </td>
-                    <td className="p-[9px_11px] text-subtle text-[11px]">{fmtDate(t.createdAt)}</td>
-                  </tr>
-                ))}
-                {transactions.length === 0 && (
-                  <tr><td colSpan={9} className="py-7 text-center text-muted">Chưa có dữ liệu</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="wide:hidden space-y-3">
-            {transactions.slice(0, 60).map((t) => (
-              <div key={t.id} className="card p-4">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className="font-mono font-bold text-[13px] truncate" style={{ color: t.type === "import" ? "#3b82f6" : "#f97316" }}>{t.refNo}</span>
-                  <TypeBadge type={t.type} />
-                </div>
-                <div className="text-sm text-body mb-1">{t.productName}</div>
-                <div className="text-xs font-mono text-subtle mb-3">{t.barcode}</div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
-                  <div>
-                    <div className="text-[10px] text-dim uppercase tracking-wide mb-[2px]">SL</div>
-                    <div className="font-bold" style={{ color: t.type === "import" ? "#10b981" : "#ef4444" }}>
-                      {t.type === "import" ? "+" : "-"}{fmtNum(t.quantity)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] text-dim uppercase tracking-wide mb-[2px]">Nhà sách</div>
-                    <div className="text-label text-xs">{bookstoreName(t.partner)}</div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] text-dim uppercase tracking-wide mb-[2px]">Kho</div>
-                    <div className="text-label text-xs">{t.warehouse}</div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] text-dim uppercase tracking-wide mb-[2px]">Vị trí</div>
-                    <span className="bg-border rounded-[6px] px-2 py-[1px] font-mono text-[11px] text-warning">{t.location || "—"}</span>
-                  </div>
-                  <div className="col-span-2">
-                    <div className="text-[10px] text-dim uppercase tracking-wide mb-[2px]">Ngày</div>
-                    <div className="text-subtle text-xs">{fmtDate(t.createdAt)}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {transactions.length === 0 && (
-              <div className="text-center text-muted text-sm py-8">Chưa có dữ liệu</div>
             )}
           </div>
         </>
