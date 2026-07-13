@@ -339,7 +339,7 @@ export default function Dashboard({ products, onViewAlerts }) {
                       key={r.date}
                       className={`${isMobileVisible ? "flex" : "hidden xs:flex"} flex-col items-center gap-[6px] relative cursor-default transition-all duration-300 ease-out`}
                       style={{
-                        flex: isHovered ? "2.6 1 0%" : isDimmed ? "0.65 1 0%" : "1 1 0%",
+                        flex: "1 1 0%",
                         opacity: isDimmed ? 0.35 : 1,
                       }}
                       onMouseEnter={() => setHoveredIdx(i)}

@@ -99,7 +99,7 @@ function AppInner() {
   const loadInventory = useCallback(() => {
     let active = true;
     inventoryApi
-      .getAll({ limit: 500 })
+      .getAll({ limit: 5000 })
       .then((data) => {
         if (!active) return;
         const mapped = (data.items || []).map((item) => ({
