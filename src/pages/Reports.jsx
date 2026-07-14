@@ -48,11 +48,27 @@ export default function Reports({ products, defaultTab = null }) {
     <div className="space-y-5">
 
       {/* Tab bar */}
-      <div className="flex gap-1 bg-card border border-border rounded-[10px] p-1 w-fit">
+      <div className="flex gap-1 bg-card border border-border rounded-full p-1 w-fit">
         {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`border-none rounded-[7px] px-4 py-[7px] cursor-pointer text-[13px] transition-all duration-150
-              ${tab === t.id ? "bg-primary text-white font-bold" : "bg-transparent text-subtle font-medium hover:text-label"}`}>
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`
+        relative border-none rounded-full px-5 py-[9px] cursor-pointer
+        text-[13px] transition-all duration-300 ease-out
+        ${tab === t.id
+                ? "text-white font-bold scale-[1.03]"
+                : "bg-transparent text-subtle font-medium hover:text-label hover:bg-white/[0.04]"
+              }
+      `}
+            style={tab === t.id
+              ? {
+                background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
+                boxShadow: "0 4px 14px rgba(99,102,241,0.4)",
+              }
+              : {}
+            }
+          >
             {t.label}
           </button>
         ))}

@@ -78,6 +78,8 @@ function AppInner() {
   const [apiError, setApiError] = useState("");
   const [reportDefaultTab, setReportDefaultTab] = useState(null);
   const [showAccountModal, setShowAccountModal] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef(null);
   const [now, setNow] = useState(new Date());
 
   const refreshTimerRef = useRef(null);
@@ -94,6 +96,17 @@ function AppInner() {
       document.body.style.overflow = "";
     };
   }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    if (!showUserMenu) return;
+    const handleClickOutside = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showUserMenu]);
 
   // ── Load inventory ───────────────────────────
   const loadInventory = useCallback(() => {
@@ -312,10 +325,11 @@ function AppInner() {
             )}
 
             {/* User info */}
-            <div className="flex items-center gap-2 pl-1">
+            {/* User info dropdown */}
+            <div className="relative pl-1" ref={userMenuRef}>
               <button
-                onClick={() => setShowAccountModal(true)}
-                title="Tài khoản của tôi"
+                onClick={() => setShowUserMenu(o => !o)}
+                title="Tài khoản"
                 className="flex items-center gap-2 bg-transparent border-none cursor-pointer p-1 rounded-lg hover:bg-white/[0.05] transition-colors duration-150"
               >
                 <div className="text-right">
@@ -339,21 +353,49 @@ function AppInner() {
                 >
                   {user.full_name?.[0]?.toUpperCase() || "A"}
                 </div>
+                <Icon
+                  name="chevron-down"
+                  size={14}
+                  className={`text-subtle flex-shrink-0 transition-transform duration-200 ${showUserMenu ? "rotate-180" : ""}`}
+                />
               </button>
-              <button
-                onClick={handleLogout}
-                title="Đăng xuất"
-                className="
-      w-[34px] h-[34px] rounded-[9px]
-      flex items-center justify-center
-      text-label cursor-pointer
-      border-none bg-border
-      hover:bg-danger/[0.15] hover:text-danger
-      transition-colors duration-150
-    "
-              >
-                <Icon name="logout" size={16} />
-              </button>
+
+              {showUserMenu && (
+                <div
+                  className="
+        absolute right-0 top-[calc(100%+8px)] z-50
+        w-[200px] bg-card border border-border rounded-[12px]
+        overflow-hidden
+      "
+                  style={{ boxShadow: "0 12px 40px rgba(0,0,0,.5)" }}
+                >
+                  <button
+                    onClick={() => { setShowAccountModal(true); setShowUserMenu(false); }}
+                    className="
+          w-full flex items-center gap-[10px] px-4 py-[11px]
+          bg-transparent border-none cursor-pointer
+          text-[13px] text-body font-medium text-left
+          hover:bg-white/[0.05] transition-colors duration-150
+        "
+                  >
+                    <Icon name="user" size={15} className="text-subtle" />
+                    Thông tin tài khoản
+                  </button>
+                  <div className="border-t border-border" />
+                  <button
+                    onClick={handleLogout}
+                    className="
+          w-full flex items-center gap-[10px] px-4 py-[11px]
+          bg-transparent border-none cursor-pointer
+          text-[13px] text-danger font-medium text-left
+          hover:bg-danger/[0.1] transition-colors duration-150
+        "
+                  >
+                    <Icon name="logout" size={15} />
+                    Đăng xuất
+                  </button>
+                </div>
+              )}
             </div>
 
             {showAccountModal && (

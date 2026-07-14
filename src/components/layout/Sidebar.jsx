@@ -66,16 +66,19 @@ export default function Sidebar({ page, setPage, sidebarOpen, setSidebar, userRo
                 onClick={() => { setPage(n.id); setMobileMenuOpen(false); }}
                 title={!showLabels ? n.label : undefined}
                 className={`
-                w-full flex items-center gap-3 px-3 py-[10px]
-                rounded-[9px] border-none border-l-[3px]
-                cursor-pointer mb-0.5 transition-all duration-200
-                ${isActive
-                    ? "border-l-primary text-primary-light"
-                    : "border-l-transparent text-subtle hover:text-label hover:bg-white/[0.04]"
+              w-full flex items-center gap-3 px-3 py-[10px]
+              rounded-[9px] border-none
+              cursor-pointer mb-0.5 transition-all duration-300 ease-out
+              ${isActive
+                    ? "text-white"
+                    : "text-subtle hover:text-label hover:bg-white/[0.04]"
                   }
-              `}
+            `}
                 style={isActive
-                  ? { background: "linear-gradient(135deg,rgba(99,102,241,.13),rgba(59,130,246,.07))" }
+                  ? {
+                    background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
+                    boxShadow: "0 4px 14px rgba(99,102,241,0.35)",
+                  }
                   : { background: "transparent" }
                 }
               >

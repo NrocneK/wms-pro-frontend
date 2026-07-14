@@ -428,12 +428,7 @@ export default function Inventory({ onRefresh, canEdit = false, refreshKey = 0, 
         )}
         {canEdit && (
           <Btn onClick={() => excelRef.current.click()} color="#10b981" outline>
-            <Icon name="excel" size={15} /> Import Excel
-          </Btn>
-        )}
-        {canEdit && (
-          <Btn onClick={downloadInventoryTemplate} color="#334155" outline>
-            <Icon name="excel" size={15} /> Tải file mẫu
+            <Icon name="excel" size={15} /> Nhập Excel
           </Btn>
         )}
         <Btn
@@ -443,6 +438,12 @@ export default function Inventory({ onRefresh, canEdit = false, refreshKey = 0, 
         >
           <Icon name="download" size={15} /> {exporting ? "Đang xuất..." : "Xuất Excel"}
         </Btn>
+        {canEdit && (
+          <Btn onClick={downloadInventoryTemplate} color="#334155" outline>
+            <Icon name="excel" size={15} /> Tải file mẫu
+          </Btn>
+        )}
+
       </div>
 
       {/* ── Counter ─────────────────────────────── */}
