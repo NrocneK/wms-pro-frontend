@@ -18,6 +18,49 @@ const downloadInventoryTemplate = () => {
   XLSX.writeFile(wb, "mau_ton_kho.xlsx");
 };
 
+// Download dữ liệu tồn kho
+const exportInventoryToExcel = async ({ search, filterWH, showAlert, setExporting }) => {
+  setExporting(true);
+  try {
+    const params = { page: 1, limit: 10000 };
+    if (search.trim()) params.search = search.trim();
+    if (filterWH !== "all") params.warehouse_code = filterWH;
+
+    const data = await inventoryApi.getAll(params);
+    const items = data.items || [];
+
+    if (items.length === 0) {
+      showAlert("Không có dữ liệu để xuất.", "warning");
+      return;
+    }
+
+    const rows = items.map(item => ({
+      "Barcode": item.barcode,
+      "Tên sản phẩm": item.product_name,
+      "Số lượng": item.quantity,
+      "Vị trí": item.location || "",
+      "Kho": item.warehouse_code,
+      "Giá vốn": Number(item.cost_price) || 0,
+      "Giá trị tồn kho": item.quantity * (Number(item.cost_price) || 0),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws["!cols"] = [
+      { wch: 20 }, { wch: 40 }, { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 14 }, { wch: 16 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Tồn kho");
+
+    const now = new Date();
+    const dateStr = `${now.getDate()}_${now.getMonth() + 1}_${now.getFullYear()}`;
+    XLSX.writeFile(wb, `ton_kho_${dateStr}.xlsx`);
+  } catch (err) {
+    showAlert("Xuất file thất bại: " + err.message);
+  } finally {
+    setExporting(false);
+  }
+};
+
 // ── ProductForm modal ─────────────────────────
 function ProductForm({ initial, onClose, onSave }) {
   const [f, setF] = useState({
@@ -96,6 +139,7 @@ export default function Inventory({ onRefresh, canEdit = false, refreshKey = 0, 
   const [alertModal, setAlert] = useState(null);
   const [confirmModal, setConfirm] = useState(null);
   const [excelPhase, setExcelPhase] = useState("idle");
+  const [exporting, setExporting] = useState(false);
   const [excelPreview, setExcelPreview] = useState(null);
   const [excelFile, setExcelFile] = useState(null);
   const excelRef = useRef();
@@ -392,6 +436,13 @@ export default function Inventory({ onRefresh, canEdit = false, refreshKey = 0, 
             <Icon name="excel" size={15} /> Tải file mẫu
           </Btn>
         )}
+        <Btn
+          onClick={() => exportInventoryToExcel({ search, filterWH, showAlert, setExporting })}
+          color="#3b82f6" outline
+          disabled={exporting}
+        >
+          <Icon name="download" size={15} /> {exporting ? "Đang xuất..." : "Xuất Excel"}
+        </Btn>
       </div>
 
       {/* ── Counter ─────────────────────────────── */}
