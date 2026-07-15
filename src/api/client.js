@@ -81,6 +81,13 @@ export const inventoryApi = {
   importReplace: (file) => upload("/inventory/import-replace", file),
 };
 
+export const productApi = {
+  getAll: (p = {}) => request("GET", `/products?${new URLSearchParams(p)}`),
+  getByBarcode: (barcode) => request("GET", `/products/${barcode}`),
+  create: (d) => request("POST", "/products", d),
+  update: (id, d) => request("PUT", `/products/${id}`, d),
+};
+
 // IMPORT
 export const importApi = {
   parseExcel: (file) => upload("/imports/parse-excel", file),

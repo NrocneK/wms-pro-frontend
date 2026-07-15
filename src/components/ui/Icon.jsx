@@ -18,6 +18,7 @@ import {
   FileSpreadsheet,
   FileText,
   ChevronDown,
+  ChevronUp,
   User,
   LogOut,
 } from "lucide-react";
@@ -41,6 +42,7 @@ const ICONS = {
   excel: FileSpreadsheet,
   pdf: FileText,
   "chevron-down": ChevronDown,
+  "chevron-up": ChevronUp,
   user: User,
   logout: LogOut,
 };

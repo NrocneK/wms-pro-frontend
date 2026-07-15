@@ -452,7 +452,7 @@ function AppInner() {
             <Inventory
               products={products}
               onRefresh={loadInventory}
-              canEdit={user?.role === "admin" || user?.role === "manager"}
+              canEdit={user?.role === "admin" || user?.role === "manager" || (user?.role === "staff" && !!user?.warehouse_code)}
               userWarehouseCode={user?.warehouse_code || null}
             />
           )}

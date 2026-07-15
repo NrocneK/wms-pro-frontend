@@ -5,7 +5,7 @@ import Icon from "../components/ui/Icon";
 import { Btn, Field, Inp, Sel, Modal, Pagination, AlertModal, ConfirmModal } from "../components/ui";
 import { fmtNum, fmtCur, fmtCompact } from "../utils/helpers";
 import { WAREHOUSES, UNITS } from "../constants";
-import { inventoryApi } from "../api/client";
+import { inventoryApi, productApi } from "../api/client";
 
 const downloadInventoryTemplate = () => {
   const ws = XLSX.utils.aoa_to_sheet([
@@ -61,6 +61,139 @@ const exportInventoryToExcel = async ({ search, filterWH, showAlert, setExportin
   }
 };
 
+function ProductCatalog({ canEdit, showAlert }) {
+  const [items, setItems] = useState([]);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+
+  const load = () => {
+    setLoading(true);
+    productApi.getAll(search.trim() ? { search: search.trim() } : {})
+      .then(data => setItems(Array.isArray(data) ? data : data.items || []))
+      .catch(err => showAlert("Không tải được danh mục: " + err.message))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, [search]); // eslint-disable-line
+
+  const handleSave = async (f) => {
+    try {
+      if (editItem) {
+        await productApi.update(editItem.id, f);
+      } else {
+        await productApi.create(f);
+      }
+      showAlert(editItem ? "Cập nhật thành công." : "Thêm mới thành công.", "success");
+      setShowForm(false);
+      setEditItem(null);
+      load();
+    } catch (err) { showAlert("Lưu thất bại: " + err.message); }
+  };
+
+  return (
+    <div>
+      <div className="flex gap-[10px] mb-[18px] flex-wrap items-center">
+        <div className="relative flex-1 min-w-[200px]">
+          <Icon name="search" size={14} className="absolute left-[10px] top-1/2 -translate-y-1/2 text-subtle pointer-events-none" />
+          <Inp
+            placeholder="Tìm barcode hoặc tên sản phẩm..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ paddingLeft: 32 }}
+          />
+        </div>
+        {canEdit && (
+          <Btn onClick={() => { setEditItem(null); setShowForm(true); }}>
+            <Icon name="plus" size={15} /> Thêm sản phẩm mới
+          </Btn>
+        )}
+      </div>
+
+      <div className="card overflow-hidden">
+        <table className="w-full border-collapse text-[13px]">
+          <thead>
+            <tr className="bg-border">
+              {["Barcode", "Tên sản phẩm", "Mã NCC", "Tên NCC", ""].map(h => (
+                <th key={h} className="text-left p-[10px_14px] text-label font-bold text-[10px] tracking-[0.5px] whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={5} className="py-7 text-center text-subtle">Đang tải...</td></tr>
+            ) : items.length === 0 ? (
+              <tr><td colSpan={5} className="py-7 text-center text-muted">Chưa có sản phẩm nào trong danh mục</td></tr>
+            ) : items.map((p, i) => (
+              <tr key={p.id} className={`border-b border-border ${i % 2 === 0 ? "" : "bg-[#0a101a]"}`}>
+                <td className="p-[10px_14px] font-mono text-primary font-bold text-[12px]">{p.barcode}</td>
+                <td className="p-[10px_14px] text-body font-medium">{p.name}</td>
+                <td className="p-[10px_14px] text-label">{p.supplier_code || "—"}</td>
+                <td className="p-[10px_14px] text-label">{p.supplier_name || "—"}</td>
+                <td className="p-[10px_14px]">
+                  {canEdit && (
+                    <button
+                      onClick={() => { setEditItem(p); setShowForm(true); }}
+                      className="bg-border border-none rounded-[6px] text-primary cursor-pointer p-[6px] flex hover:bg-muted transition-colors duration-150"
+                    >
+                      <Icon name="edit" size={13} />
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {showForm && (
+        <CatalogForm
+          initial={editItem}
+          onClose={() => { setShowForm(false); setEditItem(null); }}
+          onSave={handleSave}
+        />
+      )}
+    </div>
+  );
+}
+
+function CatalogForm({ initial, onClose, onSave }) {
+  const [f, setF] = useState({
+    barcode: initial?.barcode || "",
+    name: initial?.name || "",
+    supplier_code: initial?.supplier_code || "",
+    supplier_name: initial?.supplier_name || "",
+  });
+  const s = (k, v) => setF(x => ({ ...x, [k]: v }));
+  const isEdit = !!initial;
+
+  return (
+    <Modal title={isEdit ? "Sửa thông tin sản phẩm" : "Thêm sản phẩm vào danh mục"} onClose={onClose} width={480}>
+      <Field label="Barcode" required>
+        <Inp value={f.barcode} onChange={e => s("barcode", e.target.value)} disabled={isEdit} style={{ opacity: isEdit ? .6 : 1 }} />
+      </Field>
+      <Field label="Tên sản phẩm" required>
+        <Inp value={f.name} onChange={e => s("name", e.target.value)} />
+      </Field>
+      <div className="grid grid-cols-2 gap-x-4">
+        <Field label="Mã NCC">
+          <Inp value={f.supplier_code} onChange={e => s("supplier_code", e.target.value)} placeholder="Vd: NCC001" />
+        </Field>
+        <Field label="Tên NCC">
+          <Inp value={f.supplier_name} onChange={e => s("supplier_name", e.target.value)} placeholder="Tên nhà cung cấp" />
+        </Field>
+      </div>
+      <div className="flex gap-[10px] justify-end mt-2">
+        <Btn onClick={onClose} color="#334155" outline>Hủy</Btn>
+        <Btn onClick={() => { if (!f.barcode || !f.name) return; onSave(f); }}>
+          {isEdit ? "Lưu thay đổi" : "Thêm mới"}
+        </Btn>
+      </div>
+    </Modal>
+  );
+}
+
 // ── ProductForm modal ─────────────────────────
 function ProductForm({ initial, onClose, onSave }) {
   const [f, setF] = useState({
@@ -75,13 +208,48 @@ function ProductForm({ initial, onClose, onSave }) {
     location: initial?.location || "",
     supplier: initial?.supplier || "",
   });
+  const [lookingUp, setLookingUp] = useState(false);
+  const [foundInCatalog, setFoundInCatalog] = useState(!!initial);
   const s = (k, v) => setF(x => ({ ...x, [k]: v }));
+
+  const handleBarcodeBlur = async () => {
+    if (initial || !f.barcode.trim()) return;
+    setLookingUp(true);
+    try {
+      const rows = await productApi.getByBarcode(f.barcode.trim());
+      const product = Array.isArray(rows) ? rows[0] : rows;
+      if (product) {
+        setF(x => ({
+          ...x,
+          name: product.name,
+          unit: product.unit || x.unit,
+          costPrice: product.cost_price || x.costPrice,
+          sellPrice: product.sell_price || x.sellPrice,
+        }));
+        setFoundInCatalog(true);
+      }
+    } catch {
+      setFoundInCatalog(false);
+    } finally {
+      setLookingUp(false);
+    }
+  };
 
   return (
     <Modal title={initial ? "Chỉnh sửa sản phẩm" : "Thêm sản phẩm mới"} onClose={onClose} width={680}>
       <div className="grid grid-cols-2 gap-x-5">
         <Field label="Barcode" required>
-          <Inp value={f.barcode} onChange={e => s("barcode", e.target.value)} placeholder="Nhập mã barcode..." />
+          <Inp
+            value={f.barcode}
+            onChange={e => s("barcode", e.target.value)}
+            onBlur={handleBarcodeBlur}
+            placeholder="Nhập mã barcode rồi bấm ra ngoài để tra cứu..."
+            disabled={!!initial}
+          />
+          {lookingUp && <div className="text-[11px] text-primary mt-1">Đang tra cứu danh mục...</div>}
+          {!lookingUp && foundInCatalog && !initial && (
+            <div className="text-[11px] text-success mt-1">✓ Đã tìm thấy trong danh mục — tự động điền thông tin</div>
+          )}
         </Field>
         <Field label="Đơn vị">
           <Sel value={f.unit} onChange={e => s("unit", e.target.value)}>
@@ -89,7 +257,13 @@ function ProductForm({ initial, onClose, onSave }) {
           </Sel>
         </Field>
         <Field label="Tên sản phẩm" required>
-          <Inp value={f.name} onChange={e => s("name", e.target.value)} placeholder="Nhập tên sản phẩm..." />
+          <Inp
+            value={f.name}
+            onChange={e => s("name", e.target.value)}
+            placeholder="Nhập tên sản phẩm..."
+            disabled={foundInCatalog && !initial}
+            style={{ opacity: foundInCatalog && !initial ? .6 : 1 }}
+          />
         </Field>
         <Field label="Kho">
           <Sel value={f.warehouse} onChange={e => s("warehouse", e.target.value)}>
@@ -133,6 +307,11 @@ export default function Inventory({ onRefresh, canEdit = false, refreshKey = 0, 
   const [search, setSearch] = useState("");
   const [inputValue, setInputValue] = useState("");
   const [filterWH, setFWH] = useState("all");
+  const [filterLocation, setFilterLocation] = useState("");
+  const [inputLocation, setInputLocation] = useState("");
+  const [sortBy, setSortBy] = useState("product_name");
+  const [sortDir, setSortDir] = useState("asc");
+  const locationDebounceRef = useRef(null);
   const [showAdd, setShowAdd] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [page, setPage] = useState(1);
@@ -150,6 +329,7 @@ export default function Inventory({ onRefresh, canEdit = false, refreshKey = 0, 
   const searchDebounceRef = useRef(null);
   const [localRefreshKey, setLocalRefreshKey] = useState(0);
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [viewMode, setViewMode] = useState("stock"); // "stock" | "catalog"
 
   const showAlert = (message, type = "error", title) => setAlert({ message, type, title });
   const showConfirm = (message, onConfirm, opts = {}) => setConfirm({ message, onConfirm, ...opts });
@@ -158,9 +338,10 @@ export default function Inventory({ onRefresh, canEdit = false, refreshKey = 0, 
   useEffect(() => {
     let active = true;
     setApiLoading(true);
-    const params = { page, limit: PER };
+    const params = { page, limit: PER, sort_by: sortBy, sort_dir: sortDir };
     if (search.trim()) params.search = search.trim();
     if (filterWH !== "all") params.warehouse_code = filterWH;
+    if (filterLocation.trim()) params.location = filterLocation.trim();
     inventoryApi.getAll(params)
       .then(data => {
         if (!active) return;
@@ -187,9 +368,9 @@ export default function Inventory({ onRefresh, canEdit = false, refreshKey = 0, 
       .catch(() => { })
       .finally(() => { if (active) setApiLoading(false); });
     return () => { active = false; };
-  }, [search, filterWH, page, refreshKey, localRefreshKey]);
+  }, [search, filterWH, filterLocation, sortBy, sortDir, page, refreshKey, localRefreshKey]);
 
-  useEffect(() => { setSelectedIds(new Set()); }, [search, filterWH]);
+  useEffect(() => { setSelectedIds(new Set()); }, [search, filterWH, filterLocation, sortBy, sortDir]);
 
   const paged = apiItems;
   const totalPages = Math.ceil(apiTotal / PER);
@@ -249,6 +430,26 @@ export default function Inventory({ onRefresh, canEdit = false, refreshKey = 0, 
       },
       { title: "Xóa hàng loạt", confirmLabel: `Xóa ${count} sản phẩm`, confirmColor: "#ef4444" }
     );
+  };
+
+  const handleSort = (col) => {
+    if (sortBy === col) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(col);
+      setSortDir("asc");
+    }
+    setPage(1);
+  };
+
+  const SORT_LABELS = {
+    "Barcode": "barcode",
+    "Tên sản phẩm": "product_name",
+    "SL tồn": "quantity",
+    "Vị trí": "location",
+    "Kho": "warehouse_code",
+    "Giá vốn": "cost_price",
+    "Giá trị tồn kho": "stock_value",
   };
 
   const handleExcelFile = async (e) => {
@@ -392,129 +593,288 @@ export default function Inventory({ onRefresh, canEdit = false, refreshKey = 0, 
         </Modal>
       )}
 
-      <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={handleExcelFile} className="hidden" />
-
-      {/* ── Toolbar ─────────────────────────────── */}
-      <div className="flex gap-[10px] mb-[18px] flex-wrap items-center">
-        <div className="relative flex-1 min-w-[200px]">
-          <Icon
-            name="search" size={14}
-            className="absolute left-[10px] top-1/2 -translate-y-1/2 text-subtle pointer-events-none"
-          />
-          <Inp
-            placeholder="Tìm tên hoặc barcode"
-            value={inputValue}
-            onChange={e => {
-              const val = e.target.value;
-              setInputValue(val);
-              clearTimeout(searchDebounceRef.current);
-              searchDebounceRef.current = setTimeout(() => { setSearch(val); setPage(1); }, 350);
-            }}
-            style={{ paddingLeft: 32 }}
-          />
-        </div>
-
-        {!userWarehouseCode && (
-          <Sel value={filterWH} onChange={e => { setFWH(e.target.value); setPage(1); }} style={{ width: 120 }}>
-            <option value="all">Tất cả kho</option>
-            {WAREHOUSES.map(w => <option key={w}>{w}</option>)}
-          </Sel>
-        )}
-
-        {canEdit && (
-          <Btn onClick={() => { setEditItem(null); setShowAdd(true); }}>
-            <Icon name="plus" size={15} /> Thêm sản phẩm
-          </Btn>
-        )}
-        {canEdit && (
-          <Btn onClick={() => excelRef.current.click()} color="#10b981" outline>
-            <Icon name="excel" size={15} /> Nhập Excel
-          </Btn>
-        )}
-        <Btn
-          onClick={() => exportInventoryToExcel({ search, filterWH, showAlert, setExporting })}
-          color="#3b82f6" outline
-          disabled={exporting}
-        >
-          <Icon name="download" size={15} /> {exporting ? "Đang xuất..." : "Xuất Excel"}
-        </Btn>
-        {canEdit && (
-          <Btn onClick={downloadInventoryTemplate} color="#334155" outline>
-            <Icon name="excel" size={15} /> Tải file mẫu
-          </Btn>
-        )}
-
+      {/* Chuyển đổi Tồn kho / Danh mục sản phẩm */}
+      <div className="flex gap-1 bg-card border border-border rounded-full p-1 w-fit mb-4">
+        {[{ id: "stock", label: "Tồn kho" }, { id: "catalog", label: "Danh mục sản phẩm" }].map(t => (
+          <button
+            key={t.id}
+            onClick={() => setViewMode(t.id)}
+            className={`
+        relative border-none rounded-full px-5 py-[9px] cursor-pointer
+        text-[13px] transition-all duration-300 ease-out
+        ${viewMode === t.id
+                ? "text-white font-bold scale-[1.03]"
+                : "bg-transparent text-subtle font-medium hover:text-label hover:bg-white/[0.04]"
+              }
+      `}
+            style={viewMode === t.id
+              ? { background: "linear-gradient(135deg,#6366f1,#8b5cf6)", boxShadow: "0 4px 14px rgba(99,102,241,0.4)" }
+              : {}
+            }
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
-      {/* ── Counter ─────────────────────────────── */}
-      <div className="text-xs text-subtle mb-[10px] flex items-center gap-[10px]">
-        Hiển thị {paged.length} / {apiTotal} sản phẩm
-        {apiLoading && <span className="text-primary">Đang tải...</span>}
-      </div>
+      {viewMode === "stock" ? (
+        <>
+          <input ref={excelRef} type="file" accept=".xlsx,.xls" onChange={handleExcelFile} className="hidden" />
 
-      {/* ── Bulk action bar ──────────────────────── */}
-      {selectedIds.size > 0 && canEdit && (
-        <div className="flex items-center justify-between flex-wrap gap-2 bg-primary/[0.13] border border-primary/[0.27] rounded-[10px] px-4 py-[10px] mb-[10px]">
-          <span className="text-[13px] text-primary-light font-semibold">
-            Đã chọn <strong className="text-heading">{selectedIds.size}</strong> sản phẩm
-          </span>
-          <div className="flex gap-2">
-            <Btn onClick={() => setSelectedIds(new Set())} color="#334155" outline style={{ padding: "6px 14px", fontSize: 12 }}>
-              Bỏ chọn
+          {/* ── Toolbar ─────────────────────────────── */}
+          <div className="flex gap-[10px] mb-[18px] flex-wrap items-center">
+            <div className="relative flex-1 min-w-[200px]">
+              <Icon
+                name="search" size={14}
+                className="absolute left-[10px] top-1/2 -translate-y-1/2 text-subtle pointer-events-none"
+              />
+              <Inp
+                placeholder="Tìm tên hoặc barcode"
+                value={inputValue}
+                onChange={e => {
+                  const val = e.target.value;
+                  setInputValue(val);
+                  clearTimeout(searchDebounceRef.current);
+                  searchDebounceRef.current = setTimeout(() => { setSearch(val); setPage(1); }, 350);
+                }}
+                style={{ paddingLeft: 32 }}
+              />
+            </div>
+
+            {!userWarehouseCode && (
+              <Sel value={filterWH} onChange={e => { setFWH(e.target.value); setPage(1); }} style={{ width: 120 }}>
+                <option value="all">Tất cả kho</option>
+                {WAREHOUSES.map(w => <option key={w}>{w}</option>)}
+              </Sel>
+            )}
+
+            <div className="relative" style={{ width: 150 }}>
+              <Inp
+                placeholder="Lọc vị trí..."
+                value={inputLocation}
+                onChange={e => {
+                  const val = e.target.value;
+                  setInputLocation(val);
+                  clearTimeout(locationDebounceRef.current);
+                  locationDebounceRef.current = setTimeout(() => { setFilterLocation(val); setPage(1); }, 350);
+                }}
+              />
+            </div>
+
+            {canEdit && (
+              <Btn onClick={() => { setEditItem(null); setShowAdd(true); }}>
+                <Icon name="plus" size={15} /> Thêm sản phẩm
+              </Btn>
+            )}
+            {canEdit && (
+              <Btn onClick={() => excelRef.current.click()} color="#10b981" outline>
+                <Icon name="excel" size={15} /> Nhập Excel
+              </Btn>
+            )}
+            <Btn
+              onClick={() => exportInventoryToExcel({ search, filterWH, showAlert, setExporting })}
+              color="#3b82f6" outline
+              disabled={exporting}
+            >
+              <Icon name="download" size={15} /> {exporting ? "Đang xuất..." : "Xuất Excel"}
             </Btn>
-            <Btn onClick={handleBulkDelete} color="#ef4444" style={{ padding: "6px 14px", fontSize: 12 }}>
-              <Icon name="delete" size={13} /> Xóa {selectedIds.size} sản phẩm
-            </Btn>
+            {canEdit && (
+              <Btn onClick={downloadInventoryTemplate} color="#334155" outline>
+                <Icon name="excel" size={15} /> Tải file mẫu
+              </Btn>
+            )}
+
           </div>
-        </div>
-      )}
 
-      {/* ── Table ───────────────────────────────── */}
-      <div className="card overflow-hidden hidden wide:block">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-xs min-w-[780px]">
-            <thead>
-              <tr className="bg-border">
-                <th className="p-[10px_8px] w-11 text-center">
-                  {canEdit && (
-                    <input
-                      type="checkbox"
-                      className="accent-primary cursor-pointer w-[15px] h-[15px]"
-                      checked={paged.length > 0 && paged.every(p => selectedIds.has(p.id))}
-                      onChange={e => setSelectedIds(e.target.checked ? new Set(paged.map(p => p.id)) : new Set())}
-                    />
-                  )}
-                </th>
-                {["Barcode", "Tên sản phẩm", "SL tồn", "Vị trí", "Kho", "Giá vốn", "Giá trị tồn kho", ""].map(h => (
-                  <th
-                    key={h}
-                    className={`p-[10px_14px] text-label font-bold text-[10px] tracking-[0.5px] whitespace-nowrap ${["Giá vốn", "Giá trị tồn kho"].includes(h) ? "text-right" : "text-left"
-                      }`}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {paged.map((p, i) => {
-                const isZero = p.status === "zero" || p.quantity === 0;
-                const giaVon = Number(p.costPrice || p.cost_price || 0);
-                const giaTriTon = p.quantity * giaVon;
-                const isSelected = selectedIds.has(p.id);
-                return (
-                  <tr
-                    key={p.id}
-                    className={`border-b border-border transition-colors duration-150 ${isSelected ? "bg-primary/[0.08]"
-                      : i % 2 === 0 ? "" : "bg-[#0a101a]"
-                      } ${isZero ? "opacity-[0.45]" : ""}`}
-                  >
-                    {/* Checkbox */}
-                    <td className="p-[10px_8px] w-11 text-center">
+          {/* ── Counter ─────────────────────────────── */}
+          <div className="text-xs text-subtle mb-[10px] flex items-center gap-[10px]">
+            Hiển thị {paged.length} / {apiTotal} sản phẩm
+            {apiLoading && <span className="text-primary">Đang tải...</span>}
+          </div>
+
+          {/* ── Bulk action bar ──────────────────────── */}
+          {selectedIds.size > 0 && canEdit && (
+            <div className="flex items-center justify-between flex-wrap gap-2 bg-primary/[0.13] border border-primary/[0.27] rounded-[10px] px-4 py-[10px] mb-[10px]">
+              <span className="text-[13px] text-primary-light font-semibold">
+                Đã chọn <strong className="text-heading">{selectedIds.size}</strong> sản phẩm
+              </span>
+              <div className="flex gap-2">
+                <Btn onClick={() => setSelectedIds(new Set())} color="#334155" outline style={{ padding: "6px 14px", fontSize: 12 }}>
+                  Bỏ chọn
+                </Btn>
+                <Btn onClick={handleBulkDelete} color="#ef4444" style={{ padding: "6px 14px", fontSize: 12 }}>
+                  <Icon name="delete" size={13} /> Xóa {selectedIds.size} sản phẩm
+                </Btn>
+              </div>
+            </div>
+          )}
+
+          {/* ── Table ───────────────────────────────── */}
+          <div className="card overflow-hidden hidden wide:block">
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-xs min-w-[780px]">
+                <thead>
+                  <tr className="bg-border">
+                    <th className="p-[10px_8px] w-11 text-center">
                       {canEdit && (
                         <input
                           type="checkbox"
                           className="accent-primary cursor-pointer w-[15px] h-[15px]"
+                          checked={paged.length > 0 && paged.every(p => selectedIds.has(p.id))}
+                          onChange={e => setSelectedIds(e.target.checked ? new Set(paged.map(p => p.id)) : new Set())}
+                        />
+                      )}
+                    </th>
+                    {["Barcode", "Tên sản phẩm", "SL tồn", "Vị trí", "Kho", "Giá vốn", "Giá trị tồn kho", ""].map(h => {
+                      const sortKey = SORT_LABELS[h];
+                      const isSorted = sortKey && sortBy === sortKey;
+                      return (
+                        <th
+                          key={h}
+                          onClick={sortKey ? () => handleSort(sortKey) : undefined}
+                          className={`p-[10px_14px] text-label font-bold text-[10px] tracking-[0.5px] whitespace-nowrap ${["Giá vốn", "Giá trị tồn kho"].includes(h) ? "text-right" : "text-left"
+                            } ${sortKey ? "cursor-pointer select-none hover:text-heading transition-colors duration-150" : ""}`}
+                        >
+                          <span className="inline-flex items-center gap-1">
+                            {h}
+                            {isSorted && (
+                              <Icon name={sortDir === "asc" ? "chevron-up" : "chevron-down"} size={11} className="text-primary" />
+                            )}
+                          </span>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {paged.map((p, i) => {
+                    const isZero = p.status === "zero" || p.quantity === 0;
+                    const giaVon = Number(p.costPrice || p.cost_price || 0);
+                    const giaTriTon = p.quantity * giaVon;
+                    const isSelected = selectedIds.has(p.id);
+                    return (
+                      <tr
+                        key={p.id}
+                        className={`border-b border-border transition-colors duration-150 ${isSelected ? "bg-primary/[0.08]"
+                          : i % 2 === 0 ? "" : "bg-[#0a101a]"
+                          } ${isZero ? "opacity-[0.45]" : ""}`}
+                      >
+                        {/* Checkbox */}
+                        <td className="p-[10px_8px] w-11 text-center">
+                          {canEdit && (
+                            <input
+                              type="checkbox"
+                              className="accent-primary cursor-pointer w-[15px] h-[15px]"
+                              checked={isSelected}
+                              onChange={e => {
+                                const next = new Set(selectedIds);
+                                e.target.checked ? next.add(p.id) : next.delete(p.id);
+                                setSelectedIds(next);
+                              }}
+                            />
+                          )}
+                        </td>
+
+                        {/* Barcode */}
+                        <td className={`p-[10px_14px] font-mono font-bold text-[12px] ${isZero ? "text-dim" : "text-primary"}`}>
+                          {p.barcode}
+                        </td>
+
+                        {/* Tên */}
+                        <td className={`p-[10px_14px] font-medium ${isZero ? "text-dim" : "text-body"}`}>
+                          {p.name}
+                        </td>
+
+                        {/* SL tồn — dynamic color by status */}
+                        <td
+                          className="p-[10px_14px] font-extrabold text-sm"
+                          style={{ color: isZero ? "#ef4444" : p.status === "low" ? "#f59e0b" : "#10b981" }}
+                        >
+                          {fmtNum(p.quantity)}
+                        </td>
+
+                        {/* Vị trí */}
+                        <td className="p-[10px_14px]">
+                          {p.location
+                            ? <span className="bg-warning/[0.13] border border-warning/[0.27] rounded-[6px] px-[10px] py-[3px] font-mono text-xs text-warning font-semibold">{p.location}</span>
+                            : <span className="text-[11px] text-dim italic">—</span>}
+                        </td>
+
+                        {/* Kho */}
+                        <td className="p-[10px_14px]">
+                          <span className="bg-primary/[0.13] text-primary-light rounded-[6px] px-2 py-[2px] text-[11px] font-bold">
+                            {p.warehouse}
+                          </span>
+                        </td>
+
+                        {/* Giá vốn */}
+                        <td className="p-[10px_14px] text-label text-right">
+                          {giaVon > 0 ? fmtCur(giaVon) : <span className="text-muted">—</span>}
+                        </td>
+
+                        {/* Giá trị tồn */}
+                        <td className={`p-[10px_14px] text-right font-bold ${giaTriTon > 0 ? "text-success" : "text-muted"}`}>
+                          {giaTriTon > 0 ? fmtCur(giaTriTon) : "—"}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="p-[10px_14px]">
+                          {canEdit && (
+                            <div className="flex gap-[5px]">
+                              <button
+                                onClick={() => { setEditItem(p); setShowAdd(true); }}
+                                className="bg-border border-none rounded-[6px] text-primary cursor-pointer p-[5px] flex hover:bg-muted transition-colors duration-150"
+                              >
+                                <Icon name="edit" size={13} />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(p.id, p.name)}
+                                className="bg-border border-none rounded-[6px] text-danger cursor-pointer p-[5px] flex hover:bg-muted transition-colors duration-150"
+                              >
+                                <Icon name="delete" size={13} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* ── Danh sách dạng thẻ (mobile, dưới md) — đủ 8 trường như bảng ─── */}
+          <div className="wide:hidden space-y-3">
+            {canEdit && paged.length > 0 && (
+              <label className="flex items-center gap-2 text-xs text-subtle px-1">
+                <input
+                  type="checkbox"
+                  className="accent-primary cursor-pointer w-[15px] h-[15px]"
+                  checked={paged.every(p => selectedIds.has(p.id))}
+                  onChange={e => setSelectedIds(e.target.checked ? new Set(paged.map(p => p.id)) : new Set())}
+                />
+                Chọn tất cả trên trang này
+              </label>
+            )}
+
+            {paged.map((p) => {
+              const isZero = p.status === "zero" || p.quantity === 0;
+              const giaVon = Number(p.costPrice || p.cost_price || 0);
+              const giaTriTon = p.quantity * giaVon;
+              const isSelected = selectedIds.has(p.id);
+              return (
+                <div
+                  key={p.id}
+                  className={`card p-4 transition-colors duration-150 ${isSelected ? "border-primary/50 bg-primary/[0.05]" : ""} ${isZero ? "opacity-[0.6]" : ""}`}
+                >
+                  {/* Hàng đầu: checkbox + barcode + badge kho */}
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {canEdit && (
+                        <input
+                          type="checkbox"
+                          className="accent-primary cursor-pointer w-[15px] h-[15px] flex-shrink-0"
                           checked={isSelected}
                           onChange={e => {
                             const next = new Set(selectedIds);
@@ -523,183 +883,78 @@ export default function Inventory({ onRefresh, canEdit = false, refreshKey = 0, 
                           }}
                         />
                       )}
-                    </td>
-
-                    {/* Barcode */}
-                    <td className={`p-[10px_14px] font-mono font-bold text-[12px] ${isZero ? "text-dim" : "text-primary"}`}>
-                      {p.barcode}
-                    </td>
-
-                    {/* Tên */}
-                    <td className={`p-[10px_14px] font-medium ${isZero ? "text-dim" : "text-body"}`}>
-                      {p.name}
-                    </td>
-
-                    {/* SL tồn — dynamic color by status */}
-                    <td
-                      className="p-[10px_14px] font-extrabold text-sm"
-                      style={{ color: isZero ? "#ef4444" : p.status === "low" ? "#f59e0b" : "#10b981" }}
-                    >
-                      {fmtNum(p.quantity)}
-                    </td>
-
-                    {/* Vị trí */}
-                    <td className="p-[10px_14px]">
-                      {p.location
-                        ? <span className="bg-warning/[0.13] border border-warning/[0.27] rounded-[6px] px-[10px] py-[3px] font-mono text-xs text-warning font-semibold">{p.location}</span>
-                        : <span className="text-[11px] text-dim italic">—</span>}
-                    </td>
-
-                    {/* Kho */}
-                    <td className="p-[10px_14px]">
-                      <span className="bg-primary/[0.13] text-primary-light rounded-[6px] px-2 py-[2px] text-[11px] font-bold">
-                        {p.warehouse}
+                      <span className={`font-mono font-bold text-[13px] truncate ${isZero ? "text-dim" : "text-primary"}`}>
+                        {p.barcode}
                       </span>
-                    </td>
+                    </div>
+                    <span className="bg-primary/[0.13] text-primary-light rounded-[6px] px-2 py-[2px] text-[11px] font-bold flex-shrink-0">
+                      {p.warehouse}
+                    </span>
+                  </div>
 
-                    {/* Giá vốn */}
-                    <td className="p-[10px_14px] text-label text-right">
-                      {giaVon > 0 ? fmtCur(giaVon) : <span className="text-muted">—</span>}
-                    </td>
+                  {/* Tên sản phẩm */}
+                  <div className={`text-sm font-medium mb-3 ${isZero ? "text-dim" : "text-body"}`}>
+                    {p.name}
+                  </div>
 
-                    {/* Giá trị tồn */}
-                    <td className={`p-[10px_14px] text-right font-bold ${giaTriTon > 0 ? "text-success" : "text-muted"}`}>
-                      {giaTriTon > 0 ? fmtCur(giaTriTon) : "—"}
-                    </td>
+                  {/* Lưới 2x2: SL tồn / Vị trí / Giá vốn / Giá trị tồn */}
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2 mb-3 pb-3 border-b border-border">
+                    <div>
+                      <div className="text-[10px] text-dim uppercase tracking-wide mb-[2px]">SL tồn</div>
+                      <div className="font-extrabold text-sm" style={{ color: isZero ? "#ef4444" : p.status === "low" ? "#f59e0b" : "#10b981" }}>
+                        {fmtNum(p.quantity)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-dim uppercase tracking-wide mb-[2px]">Vị trí</div>
+                      {p.location
+                        ? <span className="bg-warning/[0.13] border border-warning/[0.27] rounded-[6px] px-2 py-[1px] font-mono text-xs text-warning font-semibold">{p.location}</span>
+                        : <span className="text-xs text-dim italic">—</span>}
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-dim uppercase tracking-wide mb-[2px]">Giá vốn</div>
+                      <div className="text-label text-sm">{giaVon > 0 ? fmtCur(giaVon) : "—"}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-dim uppercase tracking-wide mb-[2px]">Giá trị tồn</div>
+                      <div className={`font-bold text-sm ${giaTriTon > 0 ? "text-success" : "text-muted"}`}>
+                        {giaTriTon > 0 ? fmtCur(giaTriTon) : "—"}
+                      </div>
+                    </div>
+                  </div>
 
-                    {/* Actions */}
-                    <td className="p-[10px_14px]">
-                      {canEdit && (
-                        <div className="flex gap-[5px]">
-                          <button
-                            onClick={() => { setEditItem(p); setShowAdd(true); }}
-                            className="bg-border border-none rounded-[6px] text-primary cursor-pointer p-[5px] flex hover:bg-muted transition-colors duration-150"
-                          >
-                            <Icon name="edit" size={13} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(p.id, p.name)}
-                            className="bg-border border-none rounded-[6px] text-danger cursor-pointer p-[5px] flex hover:bg-muted transition-colors duration-150"
-                          >
-                            <Icon name="delete" size={13} />
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ── Danh sách dạng thẻ (mobile, dưới md) — đủ 8 trường như bảng ─── */}
-      <div className="wide:hidden space-y-3">
-        {canEdit && paged.length > 0 && (
-          <label className="flex items-center gap-2 text-xs text-subtle px-1">
-            <input
-              type="checkbox"
-              className="accent-primary cursor-pointer w-[15px] h-[15px]"
-              checked={paged.every(p => selectedIds.has(p.id))}
-              onChange={e => setSelectedIds(e.target.checked ? new Set(paged.map(p => p.id)) : new Set())}
-            />
-            Chọn tất cả trên trang này
-          </label>
-        )}
-
-        {paged.map((p) => {
-          const isZero = p.status === "zero" || p.quantity === 0;
-          const giaVon = Number(p.costPrice || p.cost_price || 0);
-          const giaTriTon = p.quantity * giaVon;
-          const isSelected = selectedIds.has(p.id);
-          return (
-            <div
-              key={p.id}
-              className={`card p-4 transition-colors duration-150 ${isSelected ? "border-primary/50 bg-primary/[0.05]" : ""} ${isZero ? "opacity-[0.6]" : ""}`}
-            >
-              {/* Hàng đầu: checkbox + barcode + badge kho */}
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <div className="flex items-center gap-2 min-w-0">
+                  {/* Actions */}
                   {canEdit && (
-                    <input
-                      type="checkbox"
-                      className="accent-primary cursor-pointer w-[15px] h-[15px] flex-shrink-0"
-                      checked={isSelected}
-                      onChange={e => {
-                        const next = new Set(selectedIds);
-                        e.target.checked ? next.add(p.id) : next.delete(p.id);
-                        setSelectedIds(next);
-                      }}
-                    />
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={() => { setEditItem(p); setShowAdd(true); }}
+                        className="bg-border border-none rounded-[6px] text-primary cursor-pointer px-3 py-[6px] flex items-center gap-1 text-xs font-semibold hover:bg-muted transition-colors duration-150"
+                      >
+                        <Icon name="edit" size={13} /> Sửa
+                      </button>
+                      <button
+                        onClick={() => handleDelete(p.id, p.name)}
+                        className="bg-border border-none rounded-[6px] text-danger cursor-pointer px-3 py-[6px] flex items-center gap-1 text-xs font-semibold hover:bg-muted transition-colors duration-150"
+                      >
+                        <Icon name="delete" size={13} /> Xóa
+                      </button>
+                    </div>
                   )}
-                  <span className={`font-mono font-bold text-[13px] truncate ${isZero ? "text-dim" : "text-primary"}`}>
-                    {p.barcode}
-                  </span>
                 </div>
-                <span className="bg-primary/[0.13] text-primary-light rounded-[6px] px-2 py-[2px] text-[11px] font-bold flex-shrink-0">
-                  {p.warehouse}
-                </span>
-              </div>
+              );
+            })}
 
-              {/* Tên sản phẩm */}
-              <div className={`text-sm font-medium mb-3 ${isZero ? "text-dim" : "text-body"}`}>
-                {p.name}
-              </div>
+            {paged.length === 0 && (
+              <div className="text-center text-muted text-sm py-8">Không có sản phẩm nào</div>
+            )}
+          </div>
 
-              {/* Lưới 2x2: SL tồn / Vị trí / Giá vốn / Giá trị tồn */}
-              <div className="grid grid-cols-2 gap-x-3 gap-y-2 mb-3 pb-3 border-b border-border">
-                <div>
-                  <div className="text-[10px] text-dim uppercase tracking-wide mb-[2px]">SL tồn</div>
-                  <div className="font-extrabold text-sm" style={{ color: isZero ? "#ef4444" : p.status === "low" ? "#f59e0b" : "#10b981" }}>
-                    {fmtNum(p.quantity)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-dim uppercase tracking-wide mb-[2px]">Vị trí</div>
-                  {p.location
-                    ? <span className="bg-warning/[0.13] border border-warning/[0.27] rounded-[6px] px-2 py-[1px] font-mono text-xs text-warning font-semibold">{p.location}</span>
-                    : <span className="text-xs text-dim italic">—</span>}
-                </div>
-                <div>
-                  <div className="text-[10px] text-dim uppercase tracking-wide mb-[2px]">Giá vốn</div>
-                  <div className="text-label text-sm">{giaVon > 0 ? fmtCur(giaVon) : "—"}</div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-dim uppercase tracking-wide mb-[2px]">Giá trị tồn</div>
-                  <div className={`font-bold text-sm ${giaTriTon > 0 ? "text-success" : "text-muted"}`}>
-                    {giaTriTon > 0 ? fmtCur(giaTriTon) : "—"}
-                  </div>
-                </div>
-              </div>
+          {totalPages > 1 && <Pagination page={page} totalPages={totalPages} onChange={setPage} />}
+        </>
+      ) : (
+        <ProductCatalog canEdit={canEdit} showAlert={showAlert} />
+      )}
 
-              {/* Actions */}
-              {canEdit && (
-                <div className="flex gap-2 justify-end">
-                  <button
-                    onClick={() => { setEditItem(p); setShowAdd(true); }}
-                    className="bg-border border-none rounded-[6px] text-primary cursor-pointer px-3 py-[6px] flex items-center gap-1 text-xs font-semibold hover:bg-muted transition-colors duration-150"
-                  >
-                    <Icon name="edit" size={13} /> Sửa
-                  </button>
-                  <button
-                    onClick={() => handleDelete(p.id, p.name)}
-                    className="bg-border border-none rounded-[6px] text-danger cursor-pointer px-3 py-[6px] flex items-center gap-1 text-xs font-semibold hover:bg-muted transition-colors duration-150"
-                  >
-                    <Icon name="delete" size={13} /> Xóa
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {paged.length === 0 && (
-          <div className="text-center text-muted text-sm py-8">Không có sản phẩm nào</div>
-        )}
-      </div>
-
-      {totalPages > 1 && <Pagination page={page} totalPages={totalPages} onChange={setPage} />}
 
       {canEdit && showAdd && (
         <ProductForm
