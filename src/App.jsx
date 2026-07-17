@@ -1,9 +1,8 @@
 // src/App.jsx
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect } from "react";
 import { BrowserRouter, useNavigate, useLocation } from "react-router-dom";
 import Sidebar from "./components/layout/Sidebar";
-import AccountModal from "./components/layout/AccountModal";
-import Icon from "./components/ui/Icon";
+import AppHeader from "./components/layout/AppHeader";
 import LoginPage from "./pages/LoginPage";
 import Dashboard from "./pages/Dashboard";
 import Inventory from "./pages/Inventory";
@@ -11,14 +10,8 @@ import ImportPage from "./pages/ImportPage";
 import ExportPage from "./pages/ExportPage";
 import Reports from "./pages/Reports";
 import UserManagement from "./pages/UserManagement";
-import { authApi, inventoryApi, getToken, getTokenExp } from "./api/client";
-import { today, fmtDate } from "./utils/helpers";
-
-const ROLE_LABELS_DISPLAY = {
-  admin: "Quản trị viên",
-  manager: "Quản lý kho",
-  staff: "Nhân viên",
-};
+import { useAuth } from "./hooks/useAuth";
+import { useInventory } from "./hooks/useInventory";
 
 const PAGE_TITLES = {
   dashboard: "Dashboard",
@@ -63,158 +56,27 @@ function AppInner() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // "page" giờ được SUY RA từ URL hiện tại, không còn là state độc lập nữa
-  // → URL luôn là nguồn sự thật duy nhất, không còn 2 nơi lưu trạng thái trang xung đột nhau
+  // "page" được SUY RA từ URL hiện tại, không còn là state độc lập
+  // → URL luôn là nguồn sự thật duy nhất
   const page = PATH_TO_PAGE[location.pathname] || "dashboard";
   const setPage = (p) => navigate(PAGE_TO_PATH[p] || "/dashboard");
 
-  const [user, setUser] = useState(null);
-  const [authChecked, setChecked] = useState(false);
-  const [products, setProducts] = useState([]);
+  const { user, setUser, authChecked, handleLogin, handleLogout } = useAuth();
+  const { products, loading, apiError, loadInventory } = useInventory(user);
+
   const [transactions, setTxns] = useState([]);
   const [sidebarOpen, setSidebar] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [apiError, setApiError] = useState("");
   const [reportDefaultTab, setReportDefaultTab] = useState(null);
-  const [showAccountModal, setShowAccountModal] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
-  const userMenuRef = useRef(null);
-  const [now, setNow] = useState(new Date());
-
-  const refreshTimerRef = useRef(null);
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Khóa scroll nền khi drawer mobile đang mở — tránh cuộn xuyên qua lớp overlay phía sau
+  // (giữ nguyên y hệt bản gốc, kể cả cleanup function)
   useEffect(() => {
     document.body.style.overflow = mobileMenuOpen ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
   }, [mobileMenuOpen]);
-
-  useEffect(() => {
-    if (!showUserMenu) return;
-    const handleClickOutside = (e) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
-        setShowUserMenu(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showUserMenu]);
-
-  // ── Load inventory ───────────────────────────
-  const loadInventory = useCallback(() => {
-    let active = true;
-    inventoryApi
-      .getAll({ limit: 5000 })
-      .then((data) => {
-        if (!active) return;
-        const mapped = (data.items || []).map((item) => ({
-          id: String(item.inventory_id),
-          barcode: item.barcode,
-          name: item.product_name,
-          quantity: item.quantity,
-          location: item.location || "",
-          warehouse: item.warehouse_code,
-          unit: item.unit,
-          minStock: item.min_stock,
-          costPrice: Number(item.cost_price) || 0,
-          sellPrice: Number(item.sell_price) || 0,
-          status: item.status,
-          zeroSince: item.zero_since || null,
-          createdAt:
-            item.updated_at?.split("T")[0] ||
-            new Date().toISOString().split("T")[0],
-          category: "Khác",
-          supplier: "",
-        }));
-        setProducts(mapped);
-      })
-      .catch((err) => {
-        if (!active) return;
-        setApiError("Không thể tải dữ liệu tồn kho: " + err.message);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!user) return;
-    const cleanup = loadInventory();
-    return cleanup;
-  }, [user, loadInventory]);
-
-  // ── Auth handlers ────────────────────────────
-  const handleLogout = useCallback(() => {
-    clearTimeout(refreshTimerRef.current);
-    authApi.logout();
-    setUser(null);
-    setProducts([]);
-    setTxns([]);
-  }, []);
-
-  const scheduleTokenRefreshRef = useRef(null);
-
-  const scheduleTokenRefresh = useCallback(
-    (token) => {
-      clearTimeout(refreshTimerRef.current);
-      const exp = getTokenExp(token);
-      if (!exp) return;
-      const delay = exp - Date.now() - 5 * 60 * 1000;
-      if (delay <= 0) {
-        handleLogout();
-        return;
-      }
-      refreshTimerRef.current = setTimeout(async () => {
-        try {
-          const data = await authApi.refresh();
-          scheduleTokenRefreshRef.current(data.token);
-        } catch {
-          handleLogout();
-        }
-      }, delay);
-    },
-    [handleLogout]
-  );
-
-  useEffect(() => {
-    scheduleTokenRefreshRef.current = scheduleTokenRefresh;
-  }, [scheduleTokenRefresh]);
-
-  const handleLogin = useCallback(
-    (userData) => {
-      setUser(userData);
-      scheduleTokenRefresh(getToken());
-    },
-    [scheduleTokenRefresh]
-  );
-
-  useEffect(() => {
-    const check = async () => {
-      const token = getToken();
-      if (token) {
-        try {
-          const me = await authApi.me();
-          setUser(me);
-          scheduleTokenRefresh(token);
-        } catch {
-          /* token invalid → login */
-        }
-      }
-      setChecked(true);
-    };
-    check();
-  }, [scheduleTokenRefresh]);
 
   // ── Render ───────────────────────────────────
   if (!authChecked) {
@@ -229,8 +91,7 @@ function AppInner() {
   }
 
   // Chưa đăng nhập → hiện LoginPage nhưng KHÔNG đổi URL — nhờ vậy sau khi đăng nhập
-  // xong, người dùng tự động vào đúng trang đã bookmark/deep-link ban đầu, không cần
-  // code redirect thêm.
+  // xong, người dùng tự động vào đúng trang đã bookmark/deep-link ban đầu.
   if (!user) return <LoginPage onLogin={handleLogin} />;
 
   const alertCount = products.filter(
@@ -255,186 +116,16 @@ function AppInner() {
       />
 
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        {/* ── Header ──────────────────────────── */}
-        <header
-          className="
-          flex-shrink-0 px-4 md:px-6 py-[14px]
-          bg-surface border-b border-border
-          flex items-center justify-between flex-wrap gap-y-3
-        "
-        >
-          {/* Left: Nút mở drawer (chỉ hiện mobile) + tiêu đề trang */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setMobileMenuOpen(true)}
-              className="
-                md:hidden flex-shrink-0
-                w-9 h-9 rounded-lg bg-border border-none
-                text-label cursor-pointer flex items-center justify-center
-                hover:bg-muted transition-colors duration-150
-              "
-              title="Mở menu"
-            >
-              <Icon name="menu" size={18} />
-            </button>
-            <div>
-              <h1 className="m-0 text-xl font-extrabold text-heading leading-none">
-                {pageTitle}
-              </h1>
-              <p className="text-xs text-subtle mt-[3px] m-0">
-                <span>Hệ thống quản lý kho · {fmtDate(today())}</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Right: Status indicators + User */}
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* Đồng hồ realtime */}
-            <div
-              className="hidden sm:flex items-center gap-2 bg-border/40 border border-border rounded-lg py-[6px] px-3"
-            >
-              <span className="w-[7px] h-[7px] rounded-full bg-success inline-block animate-pulse" />
-              <span className="font-mono text-[13px] font-semibold text-heading tabular-nums">
-                {now.toLocaleTimeString("vi-VN", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                })}
-              </span>
-            </div>
-
-            {/* Loading indicator */}
-            {loading && (
-              <div className="flex items-center gap-[6px] text-xs text-subtle">
-                <span className="w-[7px] h-[7px] rounded-full bg-primary inline-block animate-pulse" />
-                Đang tải...
-              </div>
-            )}
-
-            {/* Warehouse scope badge */}
-            {user?.warehouse_code && (
-              <div
-                className="
-                bg-primary/[0.13] border border-primary/[0.27]
-                rounded-lg py-[6px] px-3
-                text-xs text-primary-light font-bold
-              "
-              >
-                Kho {user.warehouse_code}
-              </div>
-            )}
-
-            {/* User info */}
-            {/* User info dropdown */}
-            <div className="relative pl-1" ref={userMenuRef}>
-              <button
-                onClick={() => setShowUserMenu(o => !o)}
-                title="Tài khoản"
-                className="flex items-center gap-2 bg-transparent border-none cursor-pointer p-1 rounded-lg hover:bg-white/[0.05] transition-colors duration-150"
-              >
-                <div className="text-right">
-                  <div className="text-[13px] font-semibold text-heading">
-                    {user.full_name}
-                  </div>
-                  <div className="text-[11px] text-subtle">
-                    {ROLE_LABELS_DISPLAY[user.role] || user.role}
-                  </div>
-                </div>
-                <div
-                  className="
-        w-[34px] h-[34px] rounded-[9px]
-        flex items-center justify-center
-        text-sm font-extrabold text-white
-        flex-shrink-0
-      "
-                  style={{
-                    background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
-                  }}
-                >
-                  {user.full_name?.[0]?.toUpperCase() || "A"}
-                </div>
-                <Icon
-                  name="chevron-down"
-                  size={14}
-                  className={`text-subtle flex-shrink-0 transition-transform duration-200 ${showUserMenu ? "rotate-180" : ""}`}
-                />
-              </button>
-
-              {showUserMenu && (
-                <div
-                  className="
-        absolute right-0 top-[calc(100%+8px)] z-50
-        w-[200px] bg-card border border-border rounded-[12px]
-        overflow-hidden
-      "
-                  style={{ boxShadow: "0 12px 40px rgba(0,0,0,.5)" }}
-                >
-                  <button
-                    onClick={() => { setShowAccountModal(true); setShowUserMenu(false); }}
-                    className="
-          w-full flex items-center gap-[10px] px-4 py-[11px]
-          bg-transparent border-none cursor-pointer
-          text-[13px] text-body font-medium text-left
-          hover:bg-white/[0.05] transition-colors duration-150
-        "
-                  >
-                    <Icon name="user" size={15} className="text-subtle" />
-                    Thông tin tài khoản
-                  </button>
-                  <div className="border-t border-border" />
-                  <button
-                    onClick={handleLogout}
-                    className="
-          w-full flex items-center gap-[10px] px-4 py-[11px]
-          bg-transparent border-none cursor-pointer
-          text-[13px] text-danger font-medium text-left
-          hover:bg-danger/[0.1] transition-colors duration-150
-        "
-                  >
-                    <Icon name="logout" size={15} />
-                    Đăng xuất
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {showAccountModal && (
-              <AccountModal
-                user={user}
-                onClose={() => setShowAccountModal(false)}
-                onUpdated={(updatedUser) => setUser(updatedUser)}
-              />
-            )}
-          </div>
-        </header>
-
-        {/* ── API error banner ─────────────────── */}
-        {apiError && (
-          <div
-            className="
-            flex-shrink-0 px-6 py-[10px]
-            bg-danger/[0.13] border-b border-danger/[0.27]
-            flex items-center justify-between
-            text-[13px] text-danger
-          "
-          >
-            <span className="flex items-center gap-2">
-              <Icon name="alert" size={14} />
-              {apiError}
-            </span>
-            <button
-              onClick={loadInventory}
-              className="
-                bg-danger border-none rounded-md
-                text-white text-xs font-semibold
-                px-3 py-1 cursor-pointer
-                hover:opacity-90 transition-opacity
-              "
-            >
-              Thử lại
-            </button>
-          </div>
-        )}
+        <AppHeader
+          pageTitle={pageTitle}
+          user={user}
+          setUser={setUser}
+          loading={loading}
+          apiError={apiError}
+          onRetry={loadInventory}
+          onLogout={handleLogout}
+          onOpenMobileMenu={() => setMobileMenuOpen(true)}
+        />
 
         {/* ── Page content ─────────────────────── */}
         <main className="flex-1 overflow-y-auto p-6">

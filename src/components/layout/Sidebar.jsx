@@ -1,5 +1,6 @@
 // src/components/layout/Sidebar.jsx
 import Icon from "../ui/Icon";
+import { useRef, useLayoutEffect, useState } from "react";
 
 const NAV_ALL = [
   { id: "dashboard", label: "Dashboard", icon: "dashboard" },
@@ -19,9 +20,16 @@ const ROLE_CONFIG = {
 export default function Sidebar({ page, setPage, sidebarOpen, setSidebar, userRole, mobileMenuOpen = false, setMobileMenuOpen = () => { } }) {
   const nav = userRole === "admin" ? [...NAV_ALL, NAV_ADMIN] : NAV_ALL;
   const roleConf = ROLE_CONFIG[userRole] || ROLE_CONFIG.staff;
-  // Trên mobile, drawer khi mở LUÔN hiện đầy đủ nhãn — không áp dụng chế độ
-  // thu gọn icon-only của desktop, vì đây là overlay toàn màn hình
   const showLabels = sidebarOpen || mobileMenuOpen;
+  const navRefs = useRef({});
+  const [indicator, setIndicator] = useState({ top: 0, height: 0 });
+
+  useLayoutEffect(() => {
+    const el = navRefs.current[page];
+    if (el) {
+      setIndicator({ top: el.offsetTop, height: el.offsetHeight });
+    }
+  }, [page, sidebarOpen, mobileMenuOpen]);
 
   return (
     <>
@@ -57,30 +65,31 @@ export default function Sidebar({ page, setPage, sidebarOpen, setSidebar, userRo
         </div>
 
         {/* ── Nav items ────────────────────────────────── */}
-        <nav className="px-2 pt-3 flex-1">
+        <nav className="relative px-2 pt-3 flex-1">
+          {/* Pill nền trượt mượt lên/xuống theo mục đang chọn */}
+          <div
+            className="absolute left-2 right-2 rounded-[9px] transition-all duration-300 ease-out pointer-events-none"
+            style={{
+              top: indicator.top,
+              height: indicator.height,
+              background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
+              boxShadow: "0 4px 14px rgba(99,102,241,0.35)",
+            }}
+          />
           {nav.map(n => {
             const isActive = page === n.id;
             return (
               <button
                 key={n.id}
+                ref={el => { navRefs.current[n.id] = el; }}
                 onClick={() => { setPage(n.id); setMobileMenuOpen(false); }}
                 title={!showLabels ? n.label : undefined}
                 className={`
-              w-full flex items-center gap-3 px-3 py-[10px]
-              rounded-[9px] border-none
-              cursor-pointer mb-0.5 transition-all duration-300 ease-out
-              ${isActive
-                    ? "text-white"
-                    : "text-subtle hover:text-label hover:bg-white/[0.04]"
-                  }
-            `}
-                style={isActive
-                  ? {
-                    background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
-                    boxShadow: "0 4px 14px rgba(99,102,241,0.35)",
-                  }
-                  : { background: "transparent" }
-                }
+        relative z-10 w-full flex items-center gap-3 px-3 py-[10px]
+        rounded-[9px] border-none bg-transparent
+        cursor-pointer mb-0.5 transition-colors duration-300 ease-out
+        ${isActive ? "text-white" : "text-subtle hover:text-label"}
+      `}
               >
                 {/* Icon + alert badge */}
                 <div className="flex-shrink-0 relative">

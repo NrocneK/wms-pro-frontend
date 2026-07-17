@@ -5,7 +5,7 @@ import { TypeBadge } from "../components/ui";
 import { today, fmtDate, fmtNum, fmtCur } from "../utils/helpers";
 import { API_BASE } from "../constants";
 import { WAREHOUSES } from "../constants";
-import { getToken, importApi, exportApi } from "../api/client";
+import { getToken, importApi } from "../api/client";
 
 const fmtCompact = (n) => {
   if (n >= 1e9) return (n / 1e9).toFixed(1).replace(/\.0$/, "") + " tỷ";
@@ -70,14 +70,15 @@ export default function Dashboard({ products, onViewAlerts }) {
   const todayImp = dashData.today?.today_imports || 0;
   const todayExp = dashData.today?.today_exports || 0;
 
-  const last7 = useMemo(() => {
+  const WINDOW_DAYS = 14;
+  const last14 = useMemo(() => {
     if (!dashData.rangeStart) return [];
     const actMap = Object.fromEntries(
       (dashData.activity || []).map(a => [String(a.date).split("T")[0], a])
     );
     const [sy, sm, sd] = dashData.rangeStart.split("-").map(Number);
     const startDate = new Date(sy, sm - 1, sd);
-    return Array.from({ length: 7 }, (_, i) => {
+    return Array.from({ length: WINDOW_DAYS }, (_, i) => {
       const dt = new Date(startDate);
       dt.setDate(dt.getDate() + i);
       const d = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
@@ -94,34 +95,33 @@ export default function Dashboard({ products, onViewAlerts }) {
     });
   }, [dashData.activity, dashData.rangeStart]);
 
-  const yMax = niceCeil(Math.max(...last7.map(r => Math.max(r.imp, r.exp)), 0));
+  const yMax = niceCeil(Math.max(...last14.map(r => Math.max(r.imp, r.exp)), 0));
   const yTicks = [yMax, yMax * 0.75, yMax * 0.5, yMax * 0.25, 0];
-  const totalImp7 = last7.reduce((s, r) => s + r.imp, 0);
-  const totalExp7 = last7.reduce((s, r) => s + r.exp, 0);
+  const totalImp14 = last14.reduce((s, r) => s + r.imp, 0);
+  const totalExp14 = last14.reduce((s, r) => s + r.exp, 0);
   const rangeLabel = dashData.rangeStart && dashData.rangeEnd
     ? `${fmtDate(dashData.rangeStart)} – ${fmtDate(dashData.rangeEnd)}`
     : "";
 
   const [hoveredIdx, setHoveredIdx] = useState(null);
-  const [mobileDayIndex, setMobileDayIndex] = useState(6); // con trỏ ngày đang xem ở chế độ 1-ngày (mobile), mặc định = ngày mới nhất trong tuần
 
-  const goToPrevWeek = () => { setWeekOffset(w => w + 1); setMobileDayIndex(6); };
-  const goToNextWeek = () => { setWeekOffset(w => Math.max(0, w - 1)); setMobileDayIndex(6); };
-  const goToThisWeek = () => { setWeekOffset(0); setMobileDayIndex(6); };
+  const LAST_IDX = WINDOW_DAYS - 1; // = 13
+  const [mobileDayIndex, setMobileDayIndex] = useState(LAST_IDX);
 
-  // Điều hướng từng ngày một (mobile) — khi chạm biên tuần, tự động nhảy sang
-  // tuần liền kề và đặt con trỏ ở đầu/cuối tương ứng để lướt liền mạch từng ngày,
-  // không bị nhảy cách quãng 7 ngày như nút điều hướng theo tuần ở trên.
+  const goToPrevWeek = () => { setWeekOffset(w => w + 1); setMobileDayIndex(LAST_IDX); };
+  const goToNextWeek = () => { setWeekOffset(w => Math.max(0, w - 1)); setMobileDayIndex(LAST_IDX); };
+  const goToThisWeek = () => { setWeekOffset(0); setMobileDayIndex(LAST_IDX); };
+
   const goToPrevDay = () => {
     if (mobileDayIndex > 0) setMobileDayIndex(i => i - 1);
-    else if (dashData.hasOlder) { setWeekOffset(w => w + 1); setMobileDayIndex(6); }
+    else if (dashData.hasOlder) { setWeekOffset(w => w + 1); setMobileDayIndex(LAST_IDX); }
   };
   const goToNextDay = () => {
-    if (mobileDayIndex < 6) setMobileDayIndex(i => i + 1);
+    if (mobileDayIndex < LAST_IDX) setMobileDayIndex(i => i + 1);
     else if (weekOffset > 0) { setWeekOffset(w => w - 1); setMobileDayIndex(0); }
   };
   const canGoPrevDay = mobileDayIndex > 0 || dashData.hasOlder;
-  const canGoNextDay = mobileDayIndex < 6 || weekOffset > 0;
+  const canGoNextDay = mobileDayIndex < LAST_IDX || weekOffset > 0;
 
   const byWH = dashData.byWarehouse.length > 0
     ? dashData.byWarehouse.map(w => ({ name: w.code, count: w.sku_count, value: Number(w.stock_value) }))
@@ -203,16 +203,23 @@ export default function Dashboard({ products, onViewAlerts }) {
   // /imports/:id và /exports/:id đã có sẵn (đã trả về đủ barcode/product_name/
   // quantity/bookstore), không tạo endpoint trùng lặp.
   const toggleOrder = async (order) => {
-    const key = `${order.type}-${order.order_id}`;
+    const key = `${order.type}-${order.order_id}-${order.ref_no}`;
     if (openOrderKey === key) { setOpenOrderKey(null); return; }
     setOpenOrderKey(key);
     if (itemsByOrder[key]) return;
     setLoadingItemsFor(key);
     try {
-      const data = order.type === "import"
-        ? await importApi.getOne(order.order_id)
-        : await exportApi.getOne(order.order_id);
-      setItemsByOrder(prev => ({ ...prev, [key]: data.items || [] }));
+      let data;
+      if (order.type === "import") {
+        data = (await importApi.getOne(order.order_id)).items || [];
+      } else {
+        const res = await fetch(`${API_BASE}/dashboard/export-items?order_id=${order.order_id}&ref_no=${order.ref_no}`, {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        });
+        const json = await res.json();
+        data = json.data || [];
+      }
+      setItemsByOrder(prev => ({ ...prev, [key]: data || [] }));
     } catch {
       setItemsByOrder(prev => ({ ...prev, [key]: [] }));
     } finally {
@@ -251,7 +258,7 @@ export default function Dashboard({ products, onViewAlerts }) {
         <div className="card p-4 md:p-[22px]">
           <div className="flex justify-between items-start mb-4 flex-wrap gap-3">
             <div>
-              <h3 className="m-0 text-[15px] font-bold text-heading">Hoạt động 7 ngày</h3>
+              <h3 className="m-0 text-[15px] font-bold text-heading">Hoạt động 14 ngày</h3>
               <p className="m-0 mt-1 text-[11px] text-subtle">Giá trị nhập/xuất đã xác nhận theo ngày</p>
             </div>
 
@@ -277,7 +284,7 @@ export default function Dashboard({ products, onViewAlerts }) {
               )}
             </div>
 
-            {/* Điều hướng theo TỪNG NGÀY — chỉ hiện dưới 380px, xem lần lượt cả 7 ngày */}
+            {/* Điều hướng theo TỪNG NGÀY — chỉ hiện dưới 380px, xem lần lượt cả 14 ngày */}
             <div className="flex xs:hidden items-center gap-2">
               <button
                 onClick={goToPrevDay}
@@ -286,7 +293,7 @@ export default function Dashboard({ products, onViewAlerts }) {
                 className="w-7 h-7 rounded-md border border-border text-subtle text-sm flex items-center justify-center hover:text-label hover:border-muted transition-colors duration-150 disabled:opacity-30 disabled:cursor-not-allowed"
               >‹</button>
               <div className="text-xs text-label font-semibold min-w-[90px] text-center">
-                {last7[mobileDayIndex]?.date === todayStr ? "Hôm nay" : fmtDate(last7[mobileDayIndex]?.date || "")}
+                {last14[mobileDayIndex]?.date === todayStr ? "Hôm nay" : fmtDate(last14[mobileDayIndex]?.date || "")}
               </div>
               <button
                 onClick={goToNextDay}
@@ -301,12 +308,12 @@ export default function Dashboard({ products, onViewAlerts }) {
             <div className="flex items-center gap-[6px]">
               <span className="w-[10px] h-[3px] rounded-full bg-info inline-block" />
               <span className="text-subtle">Nhập kho</span>
-              <span className="text-info font-extrabold">{fmtCur(totalImp7)}</span>
+              <span className="text-info font-extrabold">{fmtCur(totalImp14)}</span>
             </div>
             <div className="flex items-center gap-[6px]">
               <span className="w-[10px] h-[3px] rounded-full bg-export inline-block" />
               <span className="text-subtle">Xuất kho</span>
-              <span className="text-export font-extrabold">{fmtCur(totalExp7)}</span>
+              <span className="text-export font-extrabold">{fmtCur(totalExp14)}</span>
             </div>
             {loadingChart && <span className="text-dim ml-auto">Đang tải...</span>}
           </div>
@@ -326,7 +333,7 @@ export default function Dashboard({ products, onViewAlerts }) {
               </div>
 
               <div className="flex items-end gap-1 h-[160px] pb-5">
-                {last7.map((r, i) => {
+                {last14.map((r, i) => {
                   const isHovered = hoveredIdx === i;
                   const isDimmed = hoveredIdx !== null && !isHovered;
                   const isToday = r.date === todayStr;
@@ -397,7 +404,7 @@ export default function Dashboard({ products, onViewAlerts }) {
             </div>
           </div>
 
-          {totalImp7 === 0 && totalExp7 === 0 && !loadingChart && (
+          {totalImp14 === 0 && totalExp14 === 0 && !loadingChart && (
             <div className="text-center text-subtle text-xs mt-1">Không có hoạt động trong khoảng thời gian này</div>
           )}
         </div>
@@ -481,7 +488,7 @@ export default function Dashboard({ products, onViewAlerts }) {
                           </thead>
                           <tbody>
                             {(ordersByDate[dRow.date] || []).map((o) => {
-                              const key = `${o.type}-${o.order_id}`;
+                              const key = `${o.type}-${o.order_id}-${o.ref_no}`;
                               const isOpenOrder = openOrderKey === key;
                               const items = itemsByOrder[key];
                               return (

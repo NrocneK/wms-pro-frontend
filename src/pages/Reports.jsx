@@ -1,5 +1,5 @@
 // src/pages/Reports.jsx
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { fmtNum, fmtCur, applyZeroReclaim } from "../utils/helpers";
 import { WAREHOUSES } from "../constants";
 import { auditApi } from "../api/client";
@@ -15,6 +15,8 @@ const ACTION_CONFIG = {
 
 export default function Reports({ products, defaultTab = null }) {
   const [tab, setTab] = useState(defaultTab || "stock");
+  const tabRefs = useRef({});
+  const [indicator, setIndicator] = useState({ left: 0, width: 0 });
   const [auditLogs, setAuditLogs] = useState([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
 
@@ -41,6 +43,13 @@ export default function Reports({ products, defaultTab = null }) {
     { id: "audit", label: "Nhật ký" },
   ];
 
+  useLayoutEffect(() => {
+    const el = tabRefs.current[tab];
+    if (el) {
+      setIndicator({ left: el.offsetLeft, width: el.offsetWidth });
+    }
+  }, [tab, tabs.length]);
+
   /* ── shared table header style ── */
   const TH = "text-left p-[10px_12px] text-subtle font-semibold text-[11px] whitespace-nowrap";
 
@@ -48,26 +57,27 @@ export default function Reports({ products, defaultTab = null }) {
     <div className="space-y-5">
 
       {/* Tab bar */}
-      <div className="flex gap-1 bg-card border border-border rounded-full p-1 w-fit">
+      <div className="relative flex gap-1 bg-card border border-border rounded-full p-1 w-fit">
+        {/* Pill nền trượt mượt phía sau nút — chỉ 1 phần tử duy nhất, di chuyển bằng transform */}
+        <div
+          className="absolute top-1 bottom-1 rounded-full transition-all duration-300 ease-out pointer-events-none"
+          style={{
+            left: indicator.left,
+            width: indicator.width,
+            background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
+            boxShadow: "0 4px 14px rgba(99,102,241,0.4)",
+          }}
+        />
         {tabs.map(t => (
           <button
             key={t.id}
+            ref={el => { tabRefs.current[t.id] = el; }}
             onClick={() => setTab(t.id)}
             className={`
-        relative border-none rounded-full px-5 py-[9px] cursor-pointer
-        text-[13px] transition-all duration-300 ease-out
-        ${tab === t.id
-                ? "text-white font-bold scale-[1.03]"
-                : "bg-transparent text-subtle font-medium hover:text-label hover:bg-white/[0.04]"
-              }
+        relative z-10 border-none rounded-full px-5 py-[9px] bg-transparent cursor-pointer
+        text-[13px] transition-colors duration-300 ease-out
+        ${tab === t.id ? "text-white font-bold" : "text-subtle font-medium hover:text-label"}
       `}
-            style={tab === t.id
-              ? {
-                background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
-                boxShadow: "0 4px 14px rgba(99,102,241,0.4)",
-              }
-              : {}
-            }
           >
             {t.label}
           </button>
