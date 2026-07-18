@@ -3,9 +3,9 @@ import { useState, useEffect, useMemo, Fragment } from "react";
 import Icon from "../components/ui/Icon";
 import { TypeBadge } from "../components/ui";
 import { today, fmtDate, fmtNum, fmtCur } from "../utils/helpers";
-import { API_BASE } from "../constants";
 import { WAREHOUSES } from "../constants";
-import { getToken, importApi } from "../api/client";
+import { importApi } from "../services/importService";
+import { dashboardApi } from "../services/dashboardService";
 
 const fmtCompact = (n) => {
   if (n >= 1e9) return (n / 1e9).toFixed(1).replace(/\.0$/, "") + " tỷ";
@@ -46,20 +46,17 @@ export default function Dashboard({ products, onViewAlerts }) {
   useEffect(() => {
     let active = true;
     setLoadChart(true);
-    fetch(`${API_BASE}/dashboard?week_offset=${weekOffset}&_t=${Date.now()}`, {
-      headers: { Authorization: `Bearer ${getToken()}` },
-    })
-      .then(r => r.json())
+    dashboardApi.getOverview(weekOffset)
       .then(json => {
         if (!active) return;
         setDashData({
-          kpi: json.data?.kpi || null,
-          today: json.data?.today || null,
-          activity: json.data?.activity || [],
-          byWarehouse: json.data?.by_warehouse || [],
-          rangeStart: json.data?.range_start || null,
-          rangeEnd: json.data?.range_end || null,
-          hasOlder: json.data?.has_older || false,
+          kpi: json?.kpi || null,
+          today: json?.today || null,
+          activity: json?.activity || [],
+          byWarehouse: json?.by_warehouse || [],
+          rangeStart: json?.range_start || null,
+          rangeEnd: json?.range_end || null,
+          hasOlder: json?.has_older || false,
         });
       })
       .catch(() => { })
@@ -152,14 +149,11 @@ export default function Dashboard({ products, onViewAlerts }) {
 
   useEffect(() => {
     let active = true;
-    fetch(`${API_BASE}/dashboard/history-dates?limit=15&offset=0`, {
-      headers: { Authorization: `Bearer ${getToken()}` },
-    })
-      .then(r => r.json())
+    dashboardApi.getHistoryDates(15, 0)
       .then(json => {
         if (!active) return;
-        setHistoryDates(json.data?.dates || []);
-        setHasMoreDates(json.data?.has_more || false);
+        setHistoryDates(json?.dates || []);
+        setHasMoreDates(json?.has_more || false);
       })
       .catch(() => { })
       .finally(() => { if (active) setLoadingHistory(false); });
@@ -169,12 +163,9 @@ export default function Dashboard({ products, onViewAlerts }) {
   const loadMoreDates = async () => {
     setLoadingMoreDates(true);
     try {
-      const res = await fetch(`${API_BASE}/dashboard/history-dates?limit=15&offset=${historyDates.length}`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
-      const json = await res.json();
-      setHistoryDates(prev => [...prev, ...(json.data?.dates || [])]);
-      setHasMoreDates(json.data?.has_more || false);
+      const json = await dashboardApi.getHistoryDates(15, historyDates.length);
+      setHistoryDates(prev => [...prev, ...(json?.dates || [])]);
+      setHasMoreDates(json?.has_more || false);
     } catch { /* im lặng — người dùng có thể bấm lại */ }
     finally { setLoadingMoreDates(false); }
   };
@@ -187,11 +178,8 @@ export default function Dashboard({ products, onViewAlerts }) {
     if (ordersByDate[date]) return;
     setLoadingOrdersFor(date);
     try {
-      const res = await fetch(`${API_BASE}/dashboard/history-orders?date=${date}`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
-      const json = await res.json();
-      setOrdersByDate(prev => ({ ...prev, [date]: json.data?.items || [] }));
+      const json = await dashboardApi.getHistoryOrders(date);
+      setOrdersByDate(prev => ({ ...prev, [date]: json?.items || [] }));
     } catch {
       setOrdersByDate(prev => ({ ...prev, [date]: [] }));
     } finally {
@@ -199,9 +187,11 @@ export default function Dashboard({ products, onViewAlerts }) {
     }
   };
 
-  // Cấp 2 → Cấp 3: mở 1 phiếu, tải danh sách sản phẩm — TÁI SỬ DỤNG endpoint
-  // /imports/:id và /exports/:id đã có sẵn (đã trả về đủ barcode/product_name/
-  // quantity/bookstore), không tạo endpoint trùng lặp.
+  // Cấp 2 → Cấp 3: mở 1 phiếu, tải danh sách sản phẩm.
+  // Import: tái sử dụng /imports/:id (đã trả về đủ items).
+  // Export: PHẢI lọc thêm theo ref_no (1 export_order có thể có nhiều "mã phiếu"
+  // con) nên dùng riêng dashboardApi.getExportItems, không dùng /exports/:id
+  // (endpoint đó trả về TẤT CẢ items của cả phiếu, không lọc theo ref_no).
   const toggleOrder = async (order) => {
     const key = `${order.type}-${order.order_id}-${order.ref_no}`;
     if (openOrderKey === key) { setOpenOrderKey(null); return; }
@@ -213,11 +203,7 @@ export default function Dashboard({ products, onViewAlerts }) {
       if (order.type === "import") {
         data = (await importApi.getOne(order.order_id)).items || [];
       } else {
-        const res = await fetch(`${API_BASE}/dashboard/export-items?order_id=${order.order_id}&ref_no=${order.ref_no}`, {
-          headers: { Authorization: `Bearer ${getToken()}` },
-        });
-        const json = await res.json();
-        data = json.data || [];
+        data = await dashboardApi.getExportItems(order.order_id, order.ref_no);
       }
       setItemsByOrder(prev => ({ ...prev, [key]: data || [] }));
     } catch {

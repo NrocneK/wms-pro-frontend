@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import Icon from "../components/ui/Icon";
 import { Btn, Modal, AlertModal, ConfirmModal } from "../components/ui";
 import { today, fmtDate, fmtNum, fmtCur } from "../utils/helpers";
-import { exportApi } from "../api/client";
+import { exportApi } from "../services/exportService";
 import { bookstoreName } from "../constants";
 
 const downloadTemplate = () => {

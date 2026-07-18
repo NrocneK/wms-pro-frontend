@@ -3,7 +3,8 @@
 // và tự động refresh token trước khi hết hạn 5 phút.
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { authApi, getToken, getTokenExp } from "../api/client";
+import { authApi } from "../services/authService";
+import { getToken, getTokenExp } from "../services/http";
 
 export function useAuth() {
     const [user, setUser] = useState(null);

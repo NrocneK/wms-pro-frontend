@@ -5,7 +5,8 @@ import Icon from "../components/ui/Icon";
 import { Btn, Field, Inp, Sel, Modal, Pagination, AlertModal, ConfirmModal } from "../components/ui";
 import { fmtNum, fmtCur, fmtCompact } from "../utils/helpers";
 import { WAREHOUSES, UNITS } from "../constants";
-import { inventoryApi, productApi } from "../api/client";
+import { inventoryApi } from "../services/inventoryService";
+import { productApi } from "../services/productService";
 
 const downloadInventoryTemplate = () => {
   const ws = XLSX.utils.aoa_to_sheet([

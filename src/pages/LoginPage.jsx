@@ -1,6 +1,6 @@
 // src/pages/LoginPage.jsx
 import { useState } from "react";
-import { authApi } from "../api/client";
+import { authApi } from "../services/authService";
 import Icon from "../components/ui/Icon";
 
 export default function LoginPage({ onLogin }) {

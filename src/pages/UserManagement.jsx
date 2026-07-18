@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Btn, Field, Inp, Sel, Modal, AlertModal, ConfirmModal } from "../components/ui";
 import Icon from "../components/ui/Icon";
 import { fmtDate } from "../utils/helpers";
-import { userApi } from "../api/client";
+import { userApi } from "../services/userService";
 import { WAREHOUSES } from "../constants";
 
 const ROLES = ["admin", "manager", "staff"];

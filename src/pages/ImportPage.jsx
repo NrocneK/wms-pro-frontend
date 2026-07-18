@@ -6,7 +6,8 @@ import { Btn } from "../components/ui";
 import { today, fmtDate, fmtCur } from "../utils/helpers";
 import { API_BASE } from "../constants";
 import { WAREHOUSES } from "../constants";
-import { importApi, getToken } from "../api/client";
+import { importApi } from "../services/importService";
+import { getToken } from "../services/http";
 
 const downloadTemplate = () => {
   const ws = XLSX.utils.aoa_to_sheet([

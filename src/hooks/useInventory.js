@@ -2,7 +2,7 @@
 // Load danh sách tồn kho toàn cục (dùng ở Dashboard, Inventory, Reports...)
 
 import { useState, useCallback, useEffect } from "react";
-import { inventoryApi } from "../api/client";
+import { inventoryApi } from "../services/inventoryService";
 
 export function useInventory(user) {
     const [products, setProducts] = useState([]);

@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { fmtNum, fmtCur, applyZeroReclaim } from "../utils/helpers";
 import { WAREHOUSES } from "../constants";
-import { auditApi } from "../api/client";
+import { auditApi } from "../services/auditService";
 
 const WH_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444"];
 const ACTION_CONFIG = {

@@ -1,7 +1,8 @@
 // src/components/layout/AccountModal.jsx
 import { useState } from "react";
 import { Modal, Field, Inp, Btn, AlertModal } from "../ui";
-import { userApi, authApi } from "../../api/client";
+import { userApi } from "../../services/userService";
+import { authApi } from "../../services/authService";
 
 const ROLE_LABELS = { admin: "Quản trị viên", manager: "Quản lý kho", staff: "Nhân viên" };
 
