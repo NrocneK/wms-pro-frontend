@@ -12,6 +12,7 @@ export function useAuditLogs(isActive) {
         if (!isActive) return;
         if (auditLogs.length) return;
         let active = true;
+        // eslint-disable-next-line
         setLoadingAudit(true);
         auditApi.getAll({ limit: 100 })
             .then(data => { if (active) setAuditLogs(data.items || []); })

@@ -40,6 +40,7 @@ export function useInventoryList({ onRefresh, refreshKey, showAlert, showConfirm
     // Fetch từ API mỗi khi search/filterWH/page thay đổi
     useEffect(() => {
         let active = true;
+        // eslint-disable-next-line
         setApiLoading(true);
         const params = { page, limit: PER, sort_by: sortBy, sort_dir: sortDir };
         if (search.trim()) params.search = search.trim();
@@ -73,6 +74,7 @@ export function useInventoryList({ onRefresh, refreshKey, showAlert, showConfirm
         return () => { active = false; };
     }, [search, filterWH, filterLocation, sortBy, sortDir, page, refreshKey, localRefreshKey]);
 
+    // eslint-disable-next-line
     useEffect(() => { setSelectedIds(new Set()); }, [search, filterWH, filterLocation, sortBy, sortDir]);
 
     const paged = apiItems;

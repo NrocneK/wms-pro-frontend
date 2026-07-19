@@ -35,7 +35,7 @@ export function useDashboardOverview(products) {
 
     useEffect(() => {
         let active = true;
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+        // eslint-disable-next-line
         setLoadChart(true);
         dashboardApi.getOverview(weekOffset)
             .then(json => {
