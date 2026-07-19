@@ -1,24 +1,12 @@
 // src/pages/ImportPage.jsx
 import { useState, useEffect, useRef } from "react";
-import * as XLSX from "xlsx";
 import Icon from "../components/ui/Icon";
 import { Btn } from "../components/ui";
 import { today, fmtDate, fmtCur } from "../utils/helpers";
-import { API_BASE } from "../constants";
 import { WAREHOUSES } from "../constants";
 import { importApi } from "../services/importService";
-import { getToken } from "../services/http";
-
-const downloadTemplate = () => {
-  const ws = XLSX.utils.aoa_to_sheet([
-    ["Ngày", "Số phiếu nhập (7 số)", "Mã hàng (barcode)", "Tên sản phẩm", "Số lượng", "Đơn giá nhập"],
-    [today(), "1000001", "893500182997", "Tên sản phẩm mẫu", 10, 0],
-  ]);
-  ws["!cols"] = [{ wch: 12 }, { wch: 22 }, { wch: 22 }, { wch: 35 }, { wch: 12 }, { wch: 16 }];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Phiếu nhập");
-  XLSX.writeFile(wb, "mau_phieu_nhap.xlsx");
-};
+import { warehouseApi } from "../services/warehouseService";
+import { downloadImportTemplate } from "../utils/excelImport";
 
 export default function ImportPage({ onRefresh, userWarehouseCode = null }) {
   const [rows, setRows] = useState([]);
@@ -38,14 +26,10 @@ export default function ImportPage({ onRefresh, userWarehouseCode = null }) {
   }, [phase]);
 
   useEffect(() => {
-    fetch(`${API_BASE}/warehouses`, {
-      headers: { Authorization: `Bearer ${getToken()}` },
-    })
-      .then(r => r.json())
-      .then(json => {
-        const whs = json.data || [];
-        setWarehouses(whs);
-        if (whs.length > 0) {
+    warehouseApi.getAll()
+      .then(whs => {
+        setWarehouses(whs || []);
+        if (whs?.length > 0) {
           // Ưu tiên kho của user đang đăng nhập, fallback về kho đầu tiên
           const userWH = userWarehouseCode
             ? whs.find(w => w.code === userWarehouseCode)
@@ -166,7 +150,7 @@ export default function ImportPage({ onRefresh, userWarehouseCode = null }) {
             <Btn onClick={() => fileRef.current.click()} color="#3b82f6" style={{ padding: "11px 26px" }}>
               <Icon name="upload" size={16} /> Chọn file
             </Btn>
-            <Btn onClick={downloadTemplate} color="#334155" outline style={{ padding: "11px 22px" }}>
+            <Btn onClick={downloadImportTemplate} color="#334155" outline style={{ padding: "11px 22px" }}>
               <Icon name="excel" size={16} /> Tải file mẫu
             </Btn>
           </div>
