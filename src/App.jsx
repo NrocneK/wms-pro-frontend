@@ -1,17 +1,21 @@
 // src/App.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { BrowserRouter, useNavigate, useLocation } from "react-router-dom";
 import Sidebar from "./components/layout/Sidebar";
 import AppHeader from "./components/layout/AppHeader";
-import LoginPage from "./pages/LoginPage";
-import Dashboard from "./pages/Dashboard";
-import Inventory from "./pages/Inventory";
-import ImportPage from "./pages/ImportPage";
-import ExportPage from "./pages/ExportPage";
-import Reports from "./pages/Reports";
-import UserManagement from "./pages/UserManagement";
 import { useAuth } from "./hooks/useAuth";
 import { useInventory } from "./hooks/useInventory";
+
+// Mỗi trang được tách thành 1 chunk JS riêng, chỉ tải khi người dùng thực sự
+// vào trang đó — giảm bundle ban đầu thay vì gộp hết ~660kB vào 1 file.
+// LoginPage KHÔNG lazy vì luôn cần hiển thị ngay khi chưa đăng nhập.
+import LoginPage from "./pages/LoginPage";
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Inventory = lazy(() => import("./pages/Inventory"));
+const ImportPage = lazy(() => import("./pages/ImportPage"));
+const ExportPage = lazy(() => import("./pages/ExportPage"));
+const Reports = lazy(() => import("./pages/Reports"));
+const UserManagement = lazy(() => import("./pages/UserManagement"));
 
 const PAGE_TITLES = {
   dashboard: "Dashboard",
@@ -129,50 +133,59 @@ function AppInner() {
 
         {/* ── Page content ─────────────────────── */}
         <main className="flex-1 overflow-y-auto p-6">
-          {page === "dashboard" && (
-            <Dashboard
-              products={products}
-              transactions={transactions}
-              onViewAlerts={() => {
-                setReportDefaultTab("alerts");
-                setPage("reports");
-              }}
-            />
-          )}
-          {page === "inventory" && (
-            <Inventory
-              products={products}
-              onRefresh={loadInventory}
-              canEdit={user?.role === "admin" || user?.role === "manager" || (user?.role === "staff" && !!user?.warehouse_code)}
-              userWarehouseCode={user?.warehouse_code || null}
-            />
-          )}
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-20">
+              <div className="flex items-center gap-3 text-subtle text-sm">
+                <span className="w-2 h-2 rounded-full bg-primary animate-pulse inline-block" />
+                Đang tải trang...
+              </div>
+            </div>
+          }>
+            {page === "dashboard" && (
+              <Dashboard
+                products={products}
+                transactions={transactions}
+                onViewAlerts={() => {
+                  setReportDefaultTab("alerts");
+                  setPage("reports");
+                }}
+              />
+            )}
+            {page === "inventory" && (
+              <Inventory
+                products={products}
+                onRefresh={loadInventory}
+                canEdit={user?.role === "admin" || user?.role === "manager" || (user?.role === "staff" && !!user?.warehouse_code)}
+                userWarehouseCode={user?.warehouse_code || null}
+              />
+            )}
 
-          {/* Import/Export: luôn mounted, ẩn/hiện bằng CSS để giữ state — KHÔNG đổi
-              sang <Routes>/<Route> vì cơ chế match-render sẽ unmount 2 trang này khi
-              chuyển route, làm mất dữ liệu đang nhập dở. */}
-          <div style={{ display: page === "import" ? "block" : "none" }}>
-            <ImportPage
-              transactions={transactions}
-              setTransactions={setTxns}
-              onRefresh={loadInventory}
-              userWarehouseCode={user?.warehouse_code || null}
-            />
-          </div>
-          <div style={{ display: page === "export" ? "block" : "none" }}>
-            <ExportPage onRefresh={loadInventory} />
-          </div>
+            {/* Import/Export: luôn mounted, ẩn/hiện bằng CSS để giữ state — KHÔNG đổi
+                sang <Routes>/<Route> vì cơ chế match-render sẽ unmount 2 trang này khi
+                chuyển route, làm mất dữ liệu đang nhập dở. */}
+            <div style={{ display: page === "import" ? "block" : "none" }}>
+              <ImportPage
+                transactions={transactions}
+                setTransactions={setTxns}
+                onRefresh={loadInventory}
+                userWarehouseCode={user?.warehouse_code || null}
+              />
+            </div>
+            <div style={{ display: page === "export" ? "block" : "none" }}>
+              <ExportPage onRefresh={loadInventory} />
+            </div>
 
-          {page === "reports" && (
-            <Reports
-              products={products}
-              transactions={transactions}
-              defaultTab={reportDefaultTab}
-            />
-          )}
-          {page === "users" && user?.role === "admin" && (
-            <UserManagement currentUser={user} />
-          )}
+            {page === "reports" && (
+              <Reports
+                products={products}
+                transactions={transactions}
+                defaultTab={reportDefaultTab}
+              />
+            )}
+            {page === "users" && user?.role === "admin" && (
+              <UserManagement currentUser={user} />
+            )}
+          </Suspense>
         </main>
       </div>
     </div>
