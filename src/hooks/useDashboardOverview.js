@@ -55,9 +55,6 @@ export function useDashboardOverview(products) {
         return () => { active = false; };
     }, [weekOffset]);
 
-    const todayImp = dashData.today?.today_imports || 0;
-    const todayExp = dashData.today?.today_exports || 0;
-
     const last14 = useMemo(() => {
         if (!dashData.rangeStart) return [];
         const actMap = Object.fromEntries(
@@ -116,7 +113,6 @@ export function useDashboardOverview(products) {
     return {
         totalSKU, totalValue, lowStock, warnStock,
         dashData, loadingChart, weekOffset,
-        todayImp, todayExp,
         last14, yMax, yTicks, totalImp14, totalExp14, rangeLabel,
         hoveredIdx, setHoveredIdx,
         mobileDayIndex, LAST_IDX,

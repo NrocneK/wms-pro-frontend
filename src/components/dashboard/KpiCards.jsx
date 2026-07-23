@@ -4,13 +4,12 @@ import { fmtNum, fmtCur } from "../../utils/helpers";
 import { WAREHOUSES } from "../../constants";
 
 export default function KpiCards({ overview, onViewAlerts }) {
-    const { dashData, totalSKU, totalValue, lowStock, warnStock, todayImp, todayExp } = overview;
+    const { dashData, totalSKU, totalValue, lowStock, warnStock } = overview;
 
     const kpis = [
         { label: "Tổng SKU", value: fmtNum(dashData.kpi?.total_skus ?? totalSKU), sub: `${dashData.kpi?.total_warehouses ?? WAREHOUSES.length} kho`, icon: "inventory", c: "#6366f1" },
         { label: "Giá trị tồn", value: fmtCur(dashData.kpi?.total_stock_value ?? totalValue), sub: "Toàn hệ thống", icon: "warehouse", c: "#10b981" },
         { label: "Cảnh báo", value: fmtNum(lowStock), sub: `+${warnStock} sắp hết`, icon: "alert", c: "#ef4444", onClick: onViewAlerts },
-        { label: "Nhập hôm nay", value: fmtNum(todayImp), sub: `${todayExp} phiếu xuất`, icon: "import_", c: "#3b82f6" },
     ];
 
     return (
