@@ -1,18 +1,24 @@
 // src/components/inventory/InventoryStockView.jsx
 import Icon from "../ui/Icon";
-import { Btn, Pagination } from "../ui";
+import { Btn, Pagination, ErrorBanner } from "../ui";
 import { fmtNum, fmtCur } from "../../utils/helpers";
 import { SORT_LABELS } from "../../hooks/useInventoryList";
 
 export default function InventoryStockView({ list, canEdit, onEdit }) {
     const {
-        paged, apiTotal, apiLoading, totalPages, page, setPage,
+        paged, apiTotal, apiLoading, apiError, refetch, totalPages, page, setPage,
         sortBy, sortDir, handleSort, selectedIds, setSelectedIds,
         handleDelete, handleBulkDelete,
     } = list;
 
     return (
         <>
+            {apiError && (
+                <div className="mb-[10px]">
+                    <ErrorBanner message={apiError} onRetry={refetch} />
+                </div>
+            )}
+
             {/* ── Counter ─────────────────────────────── */}
             <div className="text-xs text-subtle mb-[10px] flex items-center gap-[10px]">
                 Hiển thị {paged.length} / {apiTotal} sản phẩm

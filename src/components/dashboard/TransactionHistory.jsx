@@ -2,14 +2,14 @@
 // Lịch sử giao dịch — 4 cấp:
 //   Cấp 1: Ngày → Cấp 2: Loại phiếu (Nhập/Xuất) → Cấp 3: Phiếu → Cấp 4: Sản phẩm
 import { Fragment } from "react";
-import { TypeBadge } from "../ui";
+import { TypeBadge, ErrorBanner } from "../ui";
 import { fmtDate, fmtNum, fmtCur } from "../../utils/helpers";
 
 const TYPE_LABELS = { import: "Phiếu nhập", export: "Phiếu xuất" };
 
 export default function TransactionHistory({ history, todayStr }) {
     const {
-        historyDates, loadingHistory, loadingMoreDates, hasMoreDates, loadMoreDates,
+        historyDates, loadingHistory, historyError, retryHistory, loadingMoreDates, hasMoreDates, loadMoreDates,
         openDate, loadingOrdersFor, toggleDate,
         openTypeGroup, toggleTypeGroup, groupOrdersByType,
         openOrderKey, itemsByOrder, loadingItemsFor, toggleOrder,
@@ -17,6 +17,11 @@ export default function TransactionHistory({ history, todayStr }) {
 
     return (
         <div className="card overflow-hidden">
+            {historyError && (
+                <div className="p-4 pb-0">
+                    <ErrorBanner message={historyError} onRetry={retryHistory} />
+                </div>
+            )}
             <div className="flex justify-between items-center px-4 md:px-[22px] py-4 border-b border-border">
                 <h3 className="m-0 text-[15px] font-bold text-heading">Lịch sử giao dịch</h3>
                 <span className="text-xs text-subtle">{historyDates.length} ngày{hasMoreDates ? "+" : ""}</span>

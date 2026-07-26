@@ -16,7 +16,7 @@ export default function Reports({ products, defaultTab = null }) {
     .filter(p => p.status !== "ok")
     .sort((a, b) => (a.quantity / Math.max(a.minStock, 1)) - (b.quantity / Math.max(b.minStock, 1)));
 
-  const { auditLogs, loadingAudit } = useAuditLogs(tab === "audit");
+  const { auditLogs, loadingAudit, auditError, retryAudit } = useAuditLogs(tab === "audit");
 
   const tabs = [
     { id: "stock", label: "Tổng quan" },
@@ -64,7 +64,7 @@ export default function Reports({ products, defaultTab = null }) {
 
       {tab === "stock" && <StockOverviewTab displayed={displayed} />}
       {tab === "alerts" && <AlertsTab lowItems={lowItems} />}
-      {tab === "audit" && <AuditLogTab auditLogs={auditLogs} loadingAudit={loadingAudit} />}
+      {tab === "audit" && <AuditLogTab auditLogs={auditLogs} loadingAudit={loadingAudit} auditError={auditError} retryAudit={retryAudit} />}
     </div>
   );
 }

@@ -179,6 +179,25 @@ export const TypeBadge = ({ type }) => (
 );
 
 // ── Pagination ────────────────────────────────
+// Banner lỗi dùng chung — cho các khu vực/section riêng lẻ (không phải lỗi
+// toàn trang). Style compact hơn banner ở AppHeader, đặt vừa trong 1 card.
+export const ErrorBanner = ({ message, onRetry }) => (
+  <div className="flex items-center justify-between gap-3 bg-danger/[0.08] border border-danger/[0.27] rounded-[10px] px-4 py-3 text-[13px] text-danger">
+    <span className="flex items-center gap-2">
+      <Icon name="alert" size={14} className="flex-shrink-0" />
+      {message}
+    </span>
+    {onRetry && (
+      <button
+        onClick={onRetry}
+        className="bg-danger border-none rounded-md text-white text-xs font-semibold px-3 py-1 cursor-pointer hover:opacity-90 transition-opacity flex-shrink-0"
+      >
+        Thử lại
+      </button>
+    )}
+  </div>
+);
+
 export const Pagination = ({ page, totalPages, onChange }) => {
   const getPages = () => {
     const pages = [];

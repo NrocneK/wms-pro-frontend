@@ -1,6 +1,6 @@
 // src/hooks/useDashboardOverview.js
 // Toàn bộ state + logic cho KPI cards và biểu đồ "Hoạt động 14 ngày".
-// Tách từ Dashboard.jsx (dòng 38-134 bản gốc trước Phase 3) — KHÔNG đổi công thức tính.
+
 import { useState, useEffect, useMemo } from "react";
 import { dashboardApi } from "../services/dashboardService";
 import { WAREHOUSES } from "../constants";
@@ -28,6 +28,8 @@ export function useDashboardOverview(products) {
 
     const [weekOffset, setWeekOffset] = useState(0);
     const [loadingChart, setLoadChart] = useState(true);
+    const [chartError, setChartError] = useState("");
+    const [reloadKey, setReloadKey] = useState(0);
     const [dashData, setDashData] = useState({
         kpi: null, today: null, activity: [], byWarehouse: [],
         rangeStart: null, rangeEnd: null, hasOlder: false,
@@ -37,6 +39,7 @@ export function useDashboardOverview(products) {
         let active = true;
         // eslint-disable-next-line
         setLoadChart(true);
+        setChartError("");
         dashboardApi.getOverview(weekOffset)
             .then(json => {
                 if (!active) return;
@@ -50,10 +53,10 @@ export function useDashboardOverview(products) {
                     hasOlder: json?.has_older || false,
                 });
             })
-            .catch(() => { })
+            .catch(err => { if (active) setChartError("Không tải được số liệu tổng quan: " + err.message); })
             .finally(() => { if (active) setLoadChart(false); });
         return () => { active = false; };
-    }, [weekOffset]);
+    }, [weekOffset, reloadKey]);
 
     const last14 = useMemo(() => {
         if (!dashData.rangeStart) return [];
@@ -112,7 +115,7 @@ export function useDashboardOverview(products) {
 
     return {
         totalSKU, totalValue, lowStock, warnStock,
-        dashData, loadingChart, weekOffset,
+        dashData, loadingChart, chartError, retryChart: () => setReloadKey(k => k + 1), weekOffset,
         last14, yMax, yTicks, totalImp14, totalExp14, rangeLabel,
         hoveredIdx, setHoveredIdx,
         mobileDayIndex, LAST_IDX,

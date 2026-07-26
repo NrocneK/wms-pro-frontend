@@ -1,10 +1,10 @@
 // src/hooks/useInventoryList.js
 // Toàn bộ state + logic của danh sách "Tồn kho": tìm kiếm, lọc, sắp xếp, phân
-// trang, CRUD. Tách từ Inventory.jsx (phần lớn dòng 307-444 bản gốc trước
-// Phase 3) — KHÔNG đổi logic, chỉ đổi vị trí.
+// trang, CRUD.
 // LƯU Ý: editItem (đang sửa sản phẩm nào) vẫn do trang Inventory.jsx quản lý
 // vì nó gắn với việc mở/đóng modal — hook chỉ nhận editItem làm tham số khi
 // cần lưu, không tự giữ state đó.
+
 import { useState, useEffect, useRef } from "react";
 import { inventoryApi } from "../services/inventoryService";
 
@@ -34,6 +34,7 @@ export function useInventoryList({ onRefresh, refreshKey, showAlert, showConfirm
     const [apiItems, setApiItems] = useState([]);
     const [apiTotal, setApiTotal] = useState(0);
     const [apiLoading, setApiLoading] = useState(false);
+    const [apiError, setApiError] = useState("");
     const [localRefreshKey, setLocalRefreshKey] = useState(0);
     const [selectedIds, setSelectedIds] = useState(new Set());
 
@@ -42,6 +43,7 @@ export function useInventoryList({ onRefresh, refreshKey, showAlert, showConfirm
         let active = true;
         // eslint-disable-next-line
         setApiLoading(true);
+        setApiError("");
         const params = { page, limit: PER, sort_by: sortBy, sort_dir: sortDir };
         if (search.trim()) params.search = search.trim();
         if (filterWH !== "all") params.warehouse_code = filterWH;
@@ -69,7 +71,7 @@ export function useInventoryList({ onRefresh, refreshKey, showAlert, showConfirm
                 setApiItems(mapped);
                 setApiTotal(data.pagination?.total || 0);
             })
-            .catch(() => { })
+            .catch(err => { if (active) setApiError("Không tải được danh sách tồn kho: " + err.message); })
             .finally(() => { if (active) setApiLoading(false); });
         return () => { active = false; };
     }, [search, filterWH, filterLocation, sortBy, sortDir, page, refreshKey, localRefreshKey]);
@@ -160,7 +162,7 @@ export function useInventoryList({ onRefresh, refreshKey, showAlert, showConfirm
     return {
         search, inputValue, filterWH, filterLocation, inputLocation,
         sortBy, sortDir, page, setPage,
-        apiItems, apiTotal, apiLoading, paged, totalPages,
+        apiItems, apiTotal, apiLoading, apiError, paged, totalPages,
         selectedIds, setSelectedIds,
         handleDelete, handleSave, handleBulkDelete, handleSort,
         handleSearchInput, handleLocationInput, handleFilterWH,

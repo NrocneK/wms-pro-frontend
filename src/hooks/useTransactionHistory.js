@@ -11,6 +11,8 @@ import { importApi } from "../services/importService";
 export function useTransactionHistory() {
     const [historyDates, setHistoryDates] = useState([]);
     const [loadingHistory, setLoadingHistory] = useState(true);
+    const [historyError, setHistoryError] = useState("");
+    const [reloadKey, setReloadKey] = useState(0);
     const [loadingMoreDates, setLoadingMoreDates] = useState(false);
     const [hasMoreDates, setHasMoreDates] = useState(false);
 
@@ -27,16 +29,18 @@ export function useTransactionHistory() {
     // Tải 15 ngày gần nhất khi hook được mount lần đầu (giữ nguyên hành vi gốc)
     useEffect(() => {
         let active = true;
+        // eslint-disable-next-line
+        setHistoryError("");
         dashboardApi.getHistoryDates(15, 0)
             .then(json => {
                 if (!active) return;
                 setHistoryDates(json?.dates || []);
                 setHasMoreDates(json?.has_more || false);
             })
-            .catch(() => { })
+            .catch(err => { if (active) setHistoryError("Không tải được lịch sử giao dịch: " + err.message); })
             .finally(() => { if (active) setLoadingHistory(false); });
         return () => { active = false; };
-    }, []);
+    }, [reloadKey]);
 
     const loadMoreDates = async () => {
         setLoadingMoreDates(true);
@@ -133,7 +137,8 @@ export function useTransactionHistory() {
     };
 
     return {
-        historyDates, loadingHistory, loadingMoreDates, hasMoreDates,
+        historyDates, loadingHistory, historyError, retryHistory: () => setReloadKey(k => k + 1),
+        loadingMoreDates, hasMoreDates,
         loadMoreDates,
         openDate, ordersByDate, loadingOrdersFor, toggleDate,
         openTypeGroup, toggleTypeGroup, groupOrdersByType,

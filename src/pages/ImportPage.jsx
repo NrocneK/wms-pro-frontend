@@ -37,7 +37,7 @@ export default function ImportPage({ onRefresh, userWarehouseCode = null }) {
           setSelectedWHId(userWH ? userWH.id : whs[0].id);
         }
       })
-      .catch(() => { });
+      .catch(err => setError("Không tải được danh sách kho: " + err.message));
   }, [userWarehouseCode]);
 
   const handleFile = async (e) => {

@@ -1,5 +1,6 @@
 // src/components/dashboard/ActivityChart.jsx
 import { fmtDate, fmtCur } from "../../utils/helpers";
+import { ErrorBanner } from "../ui";
 
 const fmtCompact = (n) => {
     if (n >= 1e9) return (n / 1e9).toFixed(1).replace(/\.0$/, "") + " tỷ";
@@ -12,7 +13,7 @@ const BAR_H = 130;
 
 export default function ActivityChart({ overview, todayStr }) {
     const {
-        loadingChart, last14, yMax, yTicks, totalImp14, totalExp14, rangeLabel,
+        loadingChart, chartError, retryChart, last14, yMax, yTicks, totalImp14, totalExp14, rangeLabel,
         hoveredIdx, setHoveredIdx, mobileDayIndex,
         goToPrevWeek, goToNextWeek, goToThisWeek, goToPrevDay, goToNextDay,
         canGoPrevDay, canGoNextDay, weekOffset, dashData,
@@ -20,6 +21,11 @@ export default function ActivityChart({ overview, todayStr }) {
 
     return (
         <div className="card p-4 md:p-[22px]">
+            {chartError && (
+                <div className="mb-4">
+                    <ErrorBanner message={chartError} onRetry={retryChart} />
+                </div>
+            )}
             <div className="flex justify-between items-start mb-4 flex-wrap gap-3">
                 <div>
                     <h3 className="m-0 text-[15px] font-bold text-heading">Hoạt động 14 ngày</h3>

@@ -25,7 +25,7 @@ export function useExportPacking({ onRefresh, showAlert, showConfirm, setPickSli
         setLoadingPacking(true);
         exportApi.getPacking()
             .then(data => { if (active) setPackingBatches(data || []); })
-            .catch(() => { })
+            .catch(err => { if (active) showAlert("Không tải được danh sách phiếu soạn: " + err.message); })
             .finally(() => { if (active) setLoadingPacking(false); });
         return () => { active = false; };
     };

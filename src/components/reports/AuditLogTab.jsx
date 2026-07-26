@@ -1,5 +1,7 @@
 // src/components/reports/AuditLogTab.jsx
-// Tách từ Reports.jsx (dòng 197-267 bản gốc trước Phase 3) — KHÔNG đổi JSX.
+
+import { ErrorBanner } from "../ui";
+
 const ACTION_CONFIG = {
     CREATE: { label: "Tạo mới", color: "#10b981" },
     UPDATE: { label: "Cập nhật", color: "#6366f1" },
@@ -8,9 +10,14 @@ const ACTION_CONFIG = {
     REPLACE: { label: "Thay thế", color: "#f59e0b" },
 };
 
-export default function AuditLogTab({ auditLogs, loadingAudit }) {
+export default function AuditLogTab({ auditLogs, loadingAudit, auditError, retryAudit }) {
     return (
         <>
+            {auditError && (
+                <div className="mb-4">
+                    <ErrorBanner message={auditError} onRetry={retryAudit} />
+                </div>
+            )}
             <div className="card overflow-hidden hidden wide:block">
                 <table className="w-full border-collapse text-xs">
                     <thead><tr className="bg-border">
