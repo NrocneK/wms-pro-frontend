@@ -1,6 +1,6 @@
 // src/pages/UserManagement.jsx
 import { useState, useEffect } from "react";
-import { Btn, AlertModal, ConfirmModal } from "../components/ui";
+import { Btn, AlertModal, ConfirmModal, ErrorBanner } from "../components/ui";
 import Icon from "../components/ui/Icon";
 import { userApi } from "../services/userService";
 import { ROLES, ROLE_COLORS, ROLE_LABELS, ROLE_LEGEND } from "../components/users/roleConstants";
@@ -10,6 +10,7 @@ import UserListView from "../components/users/UserListView";
 export default function UserManagement({ currentUser }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(""); // lỗi TẢI DANH SÁCH ban đầu — hiện banner + nút thử lại, giống các trang khác
   const [showForm, setShowForm] = useState(false);
   const [editUser, setEditUser] = useState(null);
   const [alert, setAlert] = useState(null);
@@ -21,9 +22,10 @@ export default function UserManagement({ currentUser }) {
   const loadUsers = () => {
     let active = true;
     setLoading(true);
+    setLoadError("");
     userApi.getAll()
       .then(data => { if (active) setUsers(Array.isArray(data) ? data : []); })
-      .catch(err => { if (active) showAlert("Không thể tải danh sách người dùng: " + err.message); })
+      .catch(err => { if (active) setLoadError("Không thể tải danh sách người dùng: " + err.message); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   };
@@ -110,6 +112,10 @@ export default function UserManagement({ currentUser }) {
           </div>
         ))}
       </div>
+
+      {loadError && (
+        <ErrorBanner message={loadError} onRetry={loadUsers} />
+      )}
 
       <UserListView
         users={users}
