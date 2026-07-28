@@ -1,93 +1,182 @@
-# WMS Pro — Frontend
+# WMS Pro — Warehouse Management System (Frontend)
 
-Giao diện quản lý kho (Warehouse Management System) cho nghiệp vụ nhà sách/xuất bản — Dashboard trực quan, quản lý tồn kho đa kho, nhập/xuất kho qua Excel, soạn hàng theo phiếu, in phiếu tìm hàng (PDF/Excel), phân quyền theo vai trò và theo kho, nhật ký thao tác.
+> A professional warehouse management system built for real-world bookstore & publishing operations.
+> Designed from actual warehouse workflows — not a tutorial project.
 
-Đây là frontend cho [wms-pro-backend](https://github.com/NrocneK/wms-pro-backend).
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)
+![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-06B6D4?logo=tailwindcss)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-## Demo
+**Live Demo:** _coming soon_
+**Backend Repo:** [wms-pro-backend](https://github.com/NrocneK/wms-pro-backend)
 
-- **Production:** triển khai trên [Vercel](https://vercel.com)
-- **Backend API:** triển khai trên [Render](https://render.com), cơ sở dữ liệu [Aiven](https://aiven.io) (MySQL managed)
+---
 
-## Công nghệ sử dụng
+## 🗂️ Table of Contents
 
-- **React 19** + **Vite** — SPA, build nhanh, HMR khi dev
-- **React Router** — điều hướng theo URL, hỗ trợ deep-link/bookmark từng trang
-- **Tailwind CSS v4** — styling, có breakpoint tùy chỉnh `wide` (1080px) để chuyển đổi bảng ↔ thẻ trên di động
-- **jsPDF** + **jsPDF-AutoTable** — xuất phiếu tìm hàng PDF (font tiếng Việt Roboto)
-- **SheetJS (xlsx)** — đọc/ghi file Excel cho nhập/xuất kho, đồng bộ tồn kho hàng loạt
-- **lucide-react** — bộ icon
+- [Background](#-background)
+- [Features](#-features)
+- [Tech Stack](#-tech-stack)
+- [Architecture](#-architecture)
+- [Getting Started](#-getting-started)
+- [Environment Variables](#-environment-variables)
+- [Project Structure](#-project-structure)
 
-## Cấu trúc thư mục
+---
+
+## 💡 Background
+
+After 2 years as a Warehouse Supervisor at Phuong Nam Bookstore chain, I saw first-hand how manual Excel-based inventory processes were slow, error-prone, and unscalable.
+
+**WMS Pro** was built to solve that exact problem — a real production-grade system designed around the actual day-to-day workflows of a bookstore warehouse: receiving stock, dispatching orders, managing multiple warehouse locations, and generating picking slips for staff.
+
+---
+
+## ✨ Features
+
+### 📦 Inventory Management
+
+- Multi-warehouse inventory tracking
+- Real-time stock levels per warehouse
+- Low-stock alerts and dashboard overview
+
+### 📥 Import / Export
+
+- Import stock via Excel file (SheetJS) — bulk upload with validation
+- Export transactions and inventory reports to Excel
+- Batch inventory sync across warehouses
+
+### 🧾 Picking Slips
+
+- Generate picking slips for outbound orders
+- Print to PDF with Vietnamese font support (jsPDF + Roboto)
+- Export picking slips to Excel
+
+### 🔐 Role-Based Access Control
+
+- **Admin** — full system access, user management
+- **Warehouse Keeper** — access limited to assigned warehouse(s)
+- Full audit log: every action is recorded with timestamp and user
+
+### 📊 Dashboard
+
+- Inventory overview with charts
+- Recent transaction history
+- Quick-access shortcuts
+
+---
+
+## 🛠️ Tech Stack
+
+| Category    | Technology              |
+| ----------- | ----------------------- |
+| Framework   | React 19                |
+| Build Tool  | Vite 5                  |
+| Styling     | Tailwind CSS v4         |
+| Routing     | React Router v6         |
+| PDF Export  | jsPDF + jsPDF-AutoTable |
+| Excel I/O   | SheetJS (xlsx)          |
+| Icons       | lucide-react            |
+| HTTP Client | Axios                   |
+
+---
+
+## 🏗️ Architecture
 
 ```
-src/
-├── pages/                     # Từng trang tương ứng 1 mục ở sidebar (Dashboard, Inventory, Import, Export, Reports, Users, Login)
-├── components/
-│   ├── layout/                  # Sidebar, Header, các phần khung chung
-│   ├── ui/                      # Component dùng chung (Button, Modal, Input, Table...)
-│   └── <domain>/                # Component riêng theo từng trang (dashboard/, inventory/, export/, reports/, users/)
-├── hooks/                      # Logic state + gọi API, tách khỏi UI (theo pattern 1 hook = 1 luồng nghiệp vụ)
-├── services/                   # Gọi API — 1 file = 1 domain, khớp 1-1 với route backend
-├── utils/                      # Hàm thuần túy (format ngày/tiền tệ, tạo file Excel/PDF)
-└── constants/                  # Hằng số dùng chung (danh sách kho, đơn vị, mã nhà sách...)
+Frontend (React 19 + Vite)
+    │
+    ├── Pages (React Router)
+    │     ├── Dashboard
+    │     ├── Inventory (per warehouse)
+    │     ├── Import / Export
+    │     ├── Picking Slips
+    │     ├── Audit Log
+    │     └── User Management (Admin only)
+    │
+    └── REST API ──► Backend (Node.js + Express)
+                          └── MySQL (Aiven Cloud)
 ```
 
-Các trang lớn được tách theo pattern: `pages/<Tên>.jsx` chỉ còn nhiệm vụ compose hook + component, toàn bộ state/logic nằm trong `hooks/use<Tên>.js`, toàn bộ UI phức tạp nằm trong `components/<domain>/`.
+**Deployment:**
 
-## Cài đặt & chạy local
+- Frontend → Vercel
+- Backend → Render
+- Database → Aiven MySQL (managed cloud)
 
-### Yêu cầu
+---
 
-- Node.js ≥ 18
-- Backend đã chạy sẵn (xem [wms-pro-backend](https://github.com/NrocneK/wms-pro-backend))
+## 🚀 Getting Started
 
-### Các bước
+### Prerequisites
+
+- Node.js >= 18
+- A running instance of [wms-pro-backend](https://github.com/NrocneK/wms-pro-backend)
+
+### Installation
 
 ```bash
+# Clone the repo
 git clone https://github.com/NrocneK/wms-pro-frontend.git
 cd wms-pro-frontend
+
+# Install dependencies
 npm install
-```
 
-Tạo file `.env` (không bắt buộc nếu backend chạy ở `http://localhost:3001`):
+# Set up environment variables (see below)
+cp .env.example .env
 
-```bash
-VITE_API_BASE=http://localhost:3001/api/v1
-```
-
-Chạy dev server:
-
-```bash
+# Start development server
 npm run dev
 ```
 
-Mặc định chạy ở `http://localhost:5173`.
+---
 
-### Build production
+## ⚙️ Environment Variables
 
-```bash
-npm run build      # đóng gói vào thư mục dist/, có code-splitting theo từng trang
-npm run preview     # chạy thử bản build production ở local trước khi deploy
+Create a `.env` file in the root directory:
+
+```env
+VITE_API_URL=http://localhost:5000/api
 ```
 
-## Các quy tắc kỹ thuật cần lưu ý
+For production, set `VITE_API_URL` to your deployed backend URL.
 
-- **Import/Export luôn được mounted** (ẩn/hiện bằng CSS `display`, không unmount qua route) — để giữ nguyên dữ liệu đang nhập dở khi người dùng chuyển sang trang khác rồi quay lại. Không refactor sang `<Routes>`/`<Route>` cho 2 trang này vì sẽ làm mất tính chất đó.
-- **Code-splitting theo trang:** các trang (trừ Login) được tải bằng `React.lazy()`, chỉ tải chunk JS tương ứng khi người dùng thực sự vào trang đó — giảm đáng kể thời gian tải lần đầu.
-- **Breakpoint `wide` (1080px):** dùng riêng cho việc chuyển đổi giữa layout bảng (desktop) và layout thẻ (mobile/tablet), tách biệt với các breakpoint chuẩn của Tailwind.
-- **Chiều cao cột biểu đồ Dashboard** dùng giá trị pixel cố định qua inline style, không dùng phần trăm bên trong flex container (tránh lỗi hiển thị sai tỉ lệ).
+---
 
-## Phân quyền theo giao diện
+## 📁 Project Structure
 
-| Vai trò     | Có thể thấy/làm                                                |
-| ----------- | -------------------------------------------------------------- |
-| **admin**   | Toàn bộ trang, bao gồm Quản lý người dùng                      |
-| **manager** | Dashboard, Tồn kho (sửa được), Nhập/Xuất kho, Báo cáo          |
-| **staff**   | Nhập/Xuất kho; chỉ xem (không sửa) Dashboard, Tồn kho, Báo cáo |
+```
+src/
+├── main.jsx              # App entry point
+├── App.jsx               # Router setup
+├── index.css             # Global styles (Tailwind)
+├── components/           # Reusable UI components
+│   ├── layout/           # Sidebar, Header, PageWrapper
+│   ├── ui/               # Button, Modal, Table, Badge...
+│   └── shared/           # Charts, FileUpload, PDFViewer
+├── pages/                # Route-level page components
+│   ├── Dashboard/
+│   ├── Inventory/
+│   ├── Import/
+│   ├── Export/
+│   ├── PickingSlip/
+│   ├── AuditLog/
+│   └── Users/
+├── services/             # API call functions (axios)
+├── hooks/                # Custom React hooks
+├── utils/                # Helpers: format, validate, export
+└── constants/            # App-wide constants & config
+```
 
-Tài khoản được gán 1 kho cụ thể sẽ chỉ thấy dữ liệu của kho đó trên toàn bộ giao diện (đồng bộ với giới hạn phía backend).
+---
 
-## Triển khai (Production)
+## 👤 Author
 
-Đang deploy trên **Vercel**, cấu hình rewrite SPA trong `vercel.json` để mọi route đều trả về `index.html` (bắt buộc vì dùng React Router). Biến môi trường `VITE_API_BASE` cần trỏ đúng domain backend thật khi deploy.
+**Ngo Minh Nhut**
+
+- GitHub: [@NrocneK](https://github.com/NrocneK)
+- Email: kdc.1110639@gmail.com
+
+> _Built from real warehouse experience. Every feature exists because a real workflow needed it._
