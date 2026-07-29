@@ -103,6 +103,7 @@ export function useInventoryList({ onRefresh, refreshKey, showAlert, showConfirm
                 name: item.name, unit: item.unit,
                 cost_price: item.costPrice, sell_price: item.sellPrice,
                 min_stock: item.minStock, location_text: item.location,
+                quantity: item.quantity,
             });
             showAlert("Cập nhật sản phẩm thành công.", "success");
         } else {
