@@ -21,6 +21,8 @@ import {
   ChevronUp,
   User,
   LogOut,
+  Camera,
+  ScanLine,
 } from "lucide-react";
 
 const ICONS = {
@@ -45,6 +47,8 @@ const ICONS = {
   "chevron-up": ChevronUp,
   user: User,
   logout: LogOut,
+  camera: Camera,
+  scan: ScanLine,
 };
 
 // className prop cho phép ghi đè màu bằng Tailwind (vd: className="text-primary")

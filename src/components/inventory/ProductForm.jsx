@@ -1,8 +1,14 @@
 // src/components/inventory/ProductForm.jsx
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { Btn, Field, Inp, Sel, Modal } from "../ui";
+import Icon from "../ui/Icon";
 import { WAREHOUSES, UNITS } from "../../constants";
 import { productApi } from "../../services/productService";
+
+// Lazy-load: thư viện html5-qrcode khá nặng (~100kB+), chỉ tải khi người dùng
+// thực sự bấm nút quét camera, tránh làm phình bundle của trang Inventory
+// cho mọi người dùng — nhất quán với cách code-splitting theo trang ở App.jsx.
+const BarcodeScannerModal = lazy(() => import("./BarcodeScannerModal"));
 
 export default function ProductForm({ initial, onClose, onSave }) {
     const [f, setF] = useState({
@@ -19,23 +25,31 @@ export default function ProductForm({ initial, onClose, onSave }) {
     });
     const [lookingUp, setLookingUp] = useState(false);
     const [foundInCatalog, setFoundInCatalog] = useState(!!initial);
+    const [showScanner, setShowScanner] = useState(false);
     const s = (k, v) => setF(x => ({ ...x, [k]: v }));
 
-    const handleBarcodeBlur = async () => {
-        if (initial || !f.barcode.trim()) return;
+    // Tra cứu barcode trong danh mục — tách thành hàm riêng nhận tham số `code`
+    // thay vì đọc trực tiếp từ state `f.barcode`, để có thể gọi ngay lập tức
+    // sau khi quét (camera) hoặc sau khi máy quét USB "gõ" xong + Enter,
+    // mà không phải chờ state cập nhật xong qua re-render.
+    const lookupBarcode = async (code) => {
+        if (initial || !code.trim()) return;
         setLookingUp(true);
         try {
-            const rows = await productApi.getByBarcode(f.barcode.trim());
+            const rows = await productApi.getByBarcode(code.trim());
             const product = Array.isArray(rows) ? rows[0] : rows;
             if (product) {
                 setF(x => ({
                     ...x,
+                    barcode: code.trim(),
                     name: product.name,
                     unit: product.unit || x.unit,
                     costPrice: product.cost_price || x.costPrice,
                     sellPrice: product.sell_price || x.sellPrice,
                 }));
                 setFoundInCatalog(true);
+            } else {
+                setFoundInCatalog(false);
             }
         } catch {
             setFoundInCatalog(false);
@@ -44,17 +58,63 @@ export default function ProductForm({ initial, onClose, onSave }) {
         }
     };
 
+    // Hệ thống lưu barcode 12 số, nhưng mã vạch in trên sản phẩm (sách/ấn phẩm)
+    // thường theo chuẩn EAN-13 = 12 số dữ liệu + 1 số kiểm tra (check digit) ở
+    // cuối cùng. Khi quét ra đủ 13 số, ta cắt bỏ số cuối để khớp định dạng 12 số
+    // của hệ thống. Chỉ áp dụng cho kết quả QUÉT (camera / máy quét USB) —
+    // không áp dụng khi gõ tay, vì lúc đó người dùng tự chịu trách nhiệm nhập
+    // đúng mã 12 số (ví dụ khi sửa lại một mã bị sai).
+    const normalizeScannedBarcode = (code) => {
+        const trimmed = code.trim();
+        return trimmed.length === 13 ? trimmed.slice(0, -1) : trimmed;
+    };
+
+    // Máy quét mã vạch USB hoạt động như bàn phím: gõ toàn bộ ký tự của mã vạch
+    // rất nhanh rồi kết thúc bằng phím Enter. Ta chặn Enter để không submit form
+    // ngoài ý muốn, và trigger tra cứu ngay (không cần đợi blur ra khỏi ô input).
+    const handleBarcodeKeyDown = (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            const normalized = normalizeScannedBarcode(f.barcode);
+            if (normalized !== f.barcode.trim()) s("barcode", normalized);
+            lookupBarcode(normalized);
+        }
+    };
+
+    // Kết quả từ camera: cắt số check digit (nếu đủ 13 số), điền vào ô barcode
+    // rồi tra cứu ngay, đóng modal quét.
+    const handleScanDetected = (code) => {
+        setShowScanner(false);
+        const normalized = normalizeScannedBarcode(code);
+        s("barcode", normalized);
+        lookupBarcode(normalized);
+    };
+
     return (
         <Modal title={initial ? "Chỉnh sửa sản phẩm" : "Thêm sản phẩm mới"} onClose={onClose} width={680}>
             <div className="grid grid-cols-2 gap-x-5">
                 <Field label="Barcode" required>
-                    <Inp
-                        value={f.barcode}
-                        onChange={e => s("barcode", e.target.value)}
-                        onBlur={handleBarcodeBlur}
-                        placeholder="Nhập mã barcode rồi bấm ra ngoài để tra cứu..."
-                        disabled={!!initial}
-                    />
+                    <div className="flex gap-[6px]">
+                        <Inp
+                            value={f.barcode}
+                            onChange={e => s("barcode", e.target.value)}
+                            onBlur={() => lookupBarcode(f.barcode)}
+                            onKeyDown={handleBarcodeKeyDown}
+                            placeholder="Quét mã, nhập tay rồi Enter, hoặc bấm ra ngoài để tra cứu..."
+                            disabled={!!initial}
+                            autoFocus={!initial}
+                        />
+                        {!initial && (
+                            <button
+                                type="button"
+                                onClick={() => setShowScanner(true)}
+                                title="Quét bằng camera"
+                                className="flex-shrink-0 bg-border border border-muted rounded-lg px-[10px] flex items-center justify-center text-label hover:text-heading hover:border-subtle transition-colors duration-150"
+                            >
+                                <Icon name="camera" size={16} />
+                            </button>
+                        )}
+                    </div>
                     {lookingUp && <div className="text-[11px] text-primary mt-1">Đang tra cứu danh mục...</div>}
                     {!lookingUp && foundInCatalog && !initial && (
                         <div className="text-[11px] text-success mt-1">✓ Đã tìm thấy trong danh mục — tự động điền thông tin</div>
@@ -107,6 +167,21 @@ export default function ProductForm({ initial, onClose, onSave }) {
                     {initial ? "Lưu thay đổi" : "Thêm sản phẩm"}
                 </Btn>
             </div>
+            {showScanner && (
+                <Suspense fallback={
+                    <div className="fixed inset-0 bg-black/80 backdrop-blur-[4px] z-[1200] flex items-center justify-center">
+                        <div className="flex items-center gap-3 text-subtle text-sm">
+                            <span className="w-2 h-2 rounded-full bg-primary animate-pulse inline-block" />
+                            Đang tải trình quét...
+                        </div>
+                    </div>
+                }>
+                    <BarcodeScannerModal
+                        onDetected={handleScanDetected}
+                        onClose={() => setShowScanner(false)}
+                    />
+                </Suspense>
+            )}
         </Modal>
     );
 }
