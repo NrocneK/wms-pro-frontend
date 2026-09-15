@@ -4,13 +4,15 @@ import Icon from "../ui/Icon";
 import { Btn, Inp } from "../ui";
 import { productApi } from "../../services/productService";
 import CatalogForm from "./CatalogForm";
+import ProductBulkImport from "./ProductBulkImport";
 
-export default function ProductCatalog({ canEdit, showAlert }) {
+export default function ProductCatalog({ canEdit, isAdmin, showAlert, showConfirm }) {
     const [items, setItems] = useState([]);
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [editItem, setEditItem] = useState(null);
+    const [showBulk, setShowBulk] = useState(false);
 
     const load = () => {
         setLoading(true);
@@ -36,6 +38,20 @@ export default function ProductCatalog({ canEdit, showAlert }) {
         } catch (err) { showAlert("Lưu thất bại: " + err.message); }
     };
 
+    const handleDelete = (p) => {
+        showConfirm(
+            `Xác nhận xoá sản phẩm "${p.name}" (${p.barcode})? Sản phẩm sẽ bị ẩn khỏi danh mục, không xoá dữ liệu tồn kho liên quan.`,
+            async () => {
+                try {
+                    await productApi.remove(p.id);
+                    showAlert("Đã xoá sản phẩm.", "success");
+                    load();
+                } catch (err) { showAlert("Xoá thất bại: " + err.message); }
+            },
+            { title: "Xoá sản phẩm", confirmLabel: "Xoá", confirmColor: "#ef4444" }
+        );
+    };
+
     return (
         <div>
             <div className="flex gap-[10px] mb-[18px] flex-wrap items-center">
@@ -49,9 +65,14 @@ export default function ProductCatalog({ canEdit, showAlert }) {
                     />
                 </div>
                 {canEdit && (
-                    <Btn onClick={() => { setEditItem(null); setShowForm(true); }}>
-                        <Icon name="plus" size={15} /> Thêm sản phẩm mới
-                    </Btn>
+                    <>
+                        <Btn onClick={() => { setEditItem(null); setShowForm(true); }}>
+                            <Icon name="plus" size={15} /> Thêm sản phẩm mới
+                        </Btn>
+                        <Btn onClick={() => setShowBulk(true)} color="#334155" outline>
+                            <Icon name="excel" size={15} /> Thêm đồng loạt
+                        </Btn>
+                    </>
                 )}
             </div>
 
@@ -59,31 +80,42 @@ export default function ProductCatalog({ canEdit, showAlert }) {
                 <table className="w-full border-collapse text-[13px]">
                     <thead>
                         <tr className="bg-border">
-                            {["Barcode", "Tên sản phẩm", "Mã NCC", "Tên NCC", ""].map(h => (
+                            {["Barcode", "Tên sản phẩm", "Mã NCC", "Tên NCC", "Kho", ""].map(h => (
                                 <th key={h} className="text-left p-[10px_14px] text-label font-bold text-[10px] tracking-[0.5px] whitespace-nowrap">{h}</th>
                             ))}
                         </tr>
                     </thead>
                     <tbody>
                         {loading ? (
-                            <tr><td colSpan={5} className="py-7 text-center text-subtle">Đang tải...</td></tr>
+                            <tr><td colSpan={6} className="py-7 text-center text-subtle">Đang tải...</td></tr>
                         ) : items.length === 0 ? (
-                            <tr><td colSpan={5} className="py-7 text-center text-muted">Chưa có sản phẩm nào trong danh mục</td></tr>
+                            <tr><td colSpan={6} className="py-7 text-center text-muted">Chưa có sản phẩm nào trong danh mục</td></tr>
                         ) : items.map((p, i) => (
-                            <tr key={p.id} className={`border-b border-border ${i % 2 === 0 ? "" : "bg-[#0a101a]"}`}>
+                            <tr key={`${p.id}-${p.warehouse_id || "none"}`} className={`border-b border-border ${i % 2 === 0 ? "" : "bg-[#0a101a]"}`}>
                                 <td className="p-[10px_14px] font-mono text-primary font-bold text-[12px]">{p.barcode}</td>
                                 <td className="p-[10px_14px] text-body font-medium">{p.name}</td>
                                 <td className="p-[10px_14px] text-label">{p.supplier_code || "—"}</td>
                                 <td className="p-[10px_14px] text-label">{p.supplier_name || "—"}</td>
+                                <td className="p-[10px_14px] text-label">{p.warehouse_code || "—"}</td>
                                 <td className="p-[10px_14px]">
-                                    {canEdit && (
-                                        <button
-                                            onClick={() => { setEditItem(p); setShowForm(true); }}
-                                            className="bg-border border-none rounded-[6px] text-primary cursor-pointer p-[6px] flex hover:bg-muted transition-colors duration-150"
-                                        >
-                                            <Icon name="edit" size={13} />
-                                        </button>
-                                    )}
+                                    <div className="flex gap-[6px]">
+                                        {canEdit && (
+                                            <button
+                                                onClick={() => { setEditItem(p); setShowForm(true); }}
+                                                className="bg-border border-none rounded-[6px] text-primary cursor-pointer p-[6px] flex hover:bg-muted transition-colors duration-150"
+                                            >
+                                                <Icon name="edit" size={13} />
+                                            </button>
+                                        )}
+                                        {isAdmin && (
+                                            <button
+                                                onClick={() => handleDelete(p)}
+                                                className="bg-border border-none rounded-[6px] text-red-400 cursor-pointer p-[6px] flex hover:bg-red-500/20 transition-colors duration-150"
+                                            >
+                                                <Icon name="delete" size={13} />
+                                            </button>
+                                        )}
+                                    </div>
                                 </td>
                             </tr>
                         ))}
@@ -96,6 +128,14 @@ export default function ProductCatalog({ canEdit, showAlert }) {
                     initial={editItem}
                     onClose={() => { setShowForm(false); setEditItem(null); }}
                     onSave={handleSave}
+                />
+            )}
+
+            {showBulk && (
+                <ProductBulkImport
+                    onClose={() => setShowBulk(false)}
+                    onDone={load}
+                    showAlert={showAlert}
                 />
             )}
         </div>

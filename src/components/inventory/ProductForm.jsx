@@ -26,7 +26,20 @@ export default function ProductForm({ initial, onClose, onSave }) {
     const [lookingUp, setLookingUp] = useState(false);
     const [foundInCatalog, setFoundInCatalog] = useState(!!initial);
     const [showScanner, setShowScanner] = useState(false);
+    // Lưu toàn bộ các dòng tồn kho trả về từ tra cứu barcode (mỗi dòng ứng với
+    // 1 kho mà sản phẩm này đang có mặt) — dùng để tự động điền lại Vị trí nếu
+    // người dùng đổi Kho sau khi đã quét, mà không phải gọi lại API.
+    const [catalogRows, setCatalogRows] = useState([]);
     const s = (k, v) => setF(x => ({ ...x, [k]: v }));
+
+    // Với danh sách các dòng tồn kho đã tra cứu được, tìm dòng khớp với kho
+    // đang chọn trên form để lấy vị trí (location) hiện có của sản phẩm tại
+    // đúng kho đó — vì vị trí là thuộc tính theo từng kho, không phải theo sản
+    // phẩm nói chung (cùng 1 sản phẩm có thể để ở vị trí khác nhau ở mỗi kho).
+    const applyLocationForWarehouse = (rows, warehouse) => {
+        const match = rows.find(r => r.warehouse_code === warehouse);
+        s("location", match?.location || "");
+    };
 
     // Tra cứu barcode trong danh mục — tách thành hàm riêng nhận tham số `code`
     // thay vì đọc trực tiếp từ state `f.barcode`, để có thể gọi ngay lập tức
@@ -37,8 +50,10 @@ export default function ProductForm({ initial, onClose, onSave }) {
         setLookingUp(true);
         try {
             const rows = await productApi.getByBarcode(code.trim());
-            const product = Array.isArray(rows) ? rows[0] : rows;
+            const list = Array.isArray(rows) ? rows : rows ? [rows] : [];
+            const product = list[0];
             if (product) {
+                setCatalogRows(list);
                 setF(x => ({
                     ...x,
                     barcode: code.trim(),
@@ -47,11 +62,15 @@ export default function ProductForm({ initial, onClose, onSave }) {
                     costPrice: product.cost_price || x.costPrice,
                     sellPrice: product.sell_price || x.sellPrice,
                 }));
+                // Điền vị trí ngay nếu sản phẩm đã có sẵn trong đúng kho đang chọn
+                applyLocationForWarehouse(list, f.warehouse);
                 setFoundInCatalog(true);
             } else {
+                setCatalogRows([]);
                 setFoundInCatalog(false);
             }
         } catch {
+            setCatalogRows([]);
             setFoundInCatalog(false);
         } finally {
             setLookingUp(false);
@@ -135,7 +154,13 @@ export default function ProductForm({ initial, onClose, onSave }) {
                     />
                 </Field>
                 <Field label="Kho">
-                    <Sel value={f.warehouse} onChange={e => s("warehouse", e.target.value)}>
+                    <Sel value={f.warehouse} onChange={e => {
+                        const wh = e.target.value;
+                        s("warehouse", wh);
+                        // Đổi kho sau khi đã quét → tra lại vị trí đúng theo kho mới,
+                        // vì vị trí gắn với từng kho chứ không phải sản phẩm nói chung.
+                        if (foundInCatalog && catalogRows.length) applyLocationForWarehouse(catalogRows, wh);
+                    }}>
                         {WAREHOUSES.map(w => <option key={w}>{w}</option>)}
                     </Sel>
                 </Field>

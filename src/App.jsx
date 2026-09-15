@@ -156,6 +156,7 @@ function AppInner() {
                 products={products}
                 onRefresh={loadInventory}
                 canEdit={user?.role === "admin" || user?.role === "manager" || (user?.role === "staff" && !!user?.warehouse_code)}
+                isAdmin={user?.role === "admin"}
                 userWarehouseCode={user?.warehouse_code || null}
               />
             )}

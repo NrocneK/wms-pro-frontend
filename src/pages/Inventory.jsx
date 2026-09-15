@@ -9,7 +9,7 @@ import ExcelPreviewModal from "../components/inventory/ExcelPreviewModal";
 import InventoryToolbar from "../components/inventory/InventoryToolbar";
 import InventoryStockView from "../components/inventory/InventoryStockView";
 
-export default function Inventory({ onRefresh, canEdit = false, refreshKey = 0, userWarehouseCode = null }) {
+export default function Inventory({ onRefresh, canEdit = false, isAdmin = false, refreshKey = 0, userWarehouseCode = null }) {
   const [showAdd, setShowAdd] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [alertModal, setAlert] = useState(null);
@@ -93,7 +93,7 @@ export default function Inventory({ onRefresh, canEdit = false, refreshKey = 0, 
           />
         </>
       ) : (
-        <ProductCatalog canEdit={canEdit} showAlert={showAlert} />
+        <ProductCatalog canEdit={canEdit} isAdmin={isAdmin} showAlert={showAlert} showConfirm={showConfirm} />
       )}
 
       {canEdit && showAdd && (
