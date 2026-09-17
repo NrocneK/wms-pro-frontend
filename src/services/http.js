@@ -34,9 +34,12 @@ export const request = async (method, path, body = null) => {
 };
 
 // ── File upload (multipart) ───────────────────
-export const upload = async (path, file) => {
+export const upload = async (path, file, extraFields = {}) => {
     const form = new FormData();
     form.append("file", file);
+    for (const [k, v] of Object.entries(extraFields)) {
+        if (v !== null && v !== undefined && v !== "") form.append(k, v);
+    }
     const res = await fetch(`${API_BASE}${path}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${getToken()}` },

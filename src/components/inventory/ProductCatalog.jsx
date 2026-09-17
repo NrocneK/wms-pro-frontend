@@ -91,12 +91,12 @@ export default function ProductCatalog({ canEdit, isAdmin, showAlert, showConfir
                         ) : items.length === 0 ? (
                             <tr><td colSpan={6} className="py-7 text-center text-muted">Chưa có sản phẩm nào trong danh mục</td></tr>
                         ) : items.map((p, i) => (
-                            <tr key={`${p.id}-${p.warehouse_id || "none"}`} className={`border-b border-border ${i % 2 === 0 ? "" : "bg-[#0a101a]"}`}>
+                            <tr key={p.id} className={`border-b border-border ${i % 2 === 0 ? "" : "bg-[#0a101a]"}`}>
                                 <td className="p-[10px_14px] font-mono text-primary font-bold text-[12px]">{p.barcode}</td>
                                 <td className="p-[10px_14px] text-body font-medium">{p.name}</td>
                                 <td className="p-[10px_14px] text-label">{p.supplier_code || "—"}</td>
                                 <td className="p-[10px_14px] text-label">{p.supplier_name || "—"}</td>
-                                <td className="p-[10px_14px] text-label">{p.warehouse_code || "—"}</td>
+                                <td className="p-[10px_14px] text-label">{p.warehouse_codes || "—"}</td>
                                 <td className="p-[10px_14px]">
                                     <div className="flex gap-[6px]">
                                         {canEdit && (

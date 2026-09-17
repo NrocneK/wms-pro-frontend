@@ -1,5 +1,5 @@
 // src/pages/ImportPage.jsx
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import Icon from "../components/ui/Icon";
 import { Btn } from "../components/ui";
 import { today, fmtDate, fmtCur } from "../utils/helpers";
@@ -8,8 +8,27 @@ import { importApi } from "../services/importService";
 import { warehouseApi } from "../services/warehouseService";
 import { downloadImportTemplate } from "../utils/excelImport";
 
+// "Cần xử lý" = sản phẩm MỚI ở kho này, còn thiếu vị trí — cần điền trước khi xác nhận.
+const needsAttention = (row) => row.isNew && !row.location.trim();
+const getStatusKey = (row) => row.isNew ? "new" : "existing";
+const STATUS_FILTER_OPTIONS = [
+  { value: "all", label: "Tất cả" },
+  { value: "attention", label: "Cần xử lý (thiếu vị trí)" },
+  { value: "new", label: "Sản phẩm mới" },
+  { value: "existing", label: "Đã có sẵn" },
+];
+const SORT_GETTERS = {
+  barcode: (row) => row.barcode || "",
+  name: (row) => row.name || "",
+  quantity: (row) => row.quantity || 0,
+  status: (row) => row.isNew ? 0 : 1,
+};
+
 export default function ImportPage({ onRefresh, userWarehouseCode = null }) {
   const [rows, setRows] = useState([]);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState(null);
+  const [sortDir, setSortDir] = useState("asc");
 
   const [importDate, setDate] = useState(today());
   const [phase, setPhase] = useState("idle"); // idle | review | saving | done
@@ -47,7 +66,7 @@ export default function ImportPage({ onRefresh, userWarehouseCode = null }) {
     e.target.value = "";
     setPhase("saving");
     try {
-      const data = await importApi.parseExcel(file);
+      const data = await importApi.parseExcel(file, selectedWHId);
       setDate(data.import_date || today());
       const parsed = (data.items || []).map((item, idx) => ({
         idx,
@@ -74,6 +93,41 @@ export default function ImportPage({ onRefresh, userWarehouseCode = null }) {
     setRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: val } : r));
 
   const hasErrors = rows.some(r => r.isNew && !r.location.trim());
+  const warnCount = rows.filter(needsAttention).length;
+
+  const toggleSort = (key) => {
+    if (sortBy === key) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortBy(key); setSortDir("asc"); }
+  };
+
+  const statusCounts = useMemo(() => {
+    const c = { all: rows.length, attention: 0, new: 0, existing: 0 };
+    rows.forEach(row => {
+      c[getStatusKey(row)]++;
+      if (needsAttention(row)) c.attention++;
+    });
+    return c;
+  }, [rows]);
+
+  // Lọc theo trạng thái đã chọn, rồi sắp xếp theo cột đã bấm (mặc định: dòng cần xử lý lên đầu).
+  // Giữ nguyên index gốc (i) để updateRow vẫn trỏ đúng dòng trong state thật.
+  const displayRows = useMemo(() => {
+    let withIndex = rows.map((row, i) => ({ row, i }));
+    if (statusFilter === "attention") withIndex = withIndex.filter(x => needsAttention(x.row));
+    else if (statusFilter !== "all") withIndex = withIndex.filter(x => getStatusKey(x.row) === statusFilter);
+
+    if (sortBy) {
+      const getVal = SORT_GETTERS[sortBy];
+      withIndex.sort((a, b) => {
+        const va = getVal(a.row), vb = getVal(b.row);
+        const cmp = typeof va === "string" ? va.localeCompare(vb, undefined, { numeric: true }) : va - vb;
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+    } else {
+      withIndex.sort((a, b) => Number(needsAttention(b.row)) - Number(needsAttention(a.row)));
+    }
+    return withIndex;
+  }, [rows, statusFilter, sortBy, sortDir]);
 
   const confirmImport = async () => {
     if (hasErrors) { setError("Vui lòng điền vị trí cho các sản phẩm mới."); return; }
@@ -212,6 +266,47 @@ export default function ImportPage({ onRefresh, userWarehouseCode = null }) {
             <div className="text-[13px] text-subtle">
               Sản phẩm mới: <strong className="text-warning">{rows.filter(r => r.isNew).length}</strong>
             </div>
+            {warnCount > 0 && (
+              <div className="flex items-center gap-[6px]">
+                <span className="text-[13px] text-subtle">Lọc:</span>
+                <select
+                  value={statusFilter}
+                  onChange={e => setStatusFilter(e.target.value)}
+                  className="bg-card border border-border rounded-[6px] px-[10px] py-[6px] text-label text-[13px] outline-none"
+                  style={{ colorScheme: "dark" }}
+                >
+                  {STATUS_FILTER_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}{o.value !== "all" ? ` (${statusCounts[o.value]})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="flex items-center gap-[6px]">
+              <span className="text-[13px] text-subtle">Sắp xếp:</span>
+              <select
+                value={sortBy || ""}
+                onChange={e => { const v = e.target.value; if (!v) setSortBy(null); else { setSortBy(v); setSortDir("asc"); } }}
+                className="bg-card border border-border rounded-[6px] px-[10px] py-[6px] text-label text-[13px] outline-none"
+                style={{ colorScheme: "dark" }}
+              >
+                <option value="">Mặc định (cần xử lý trước)</option>
+                <option value="barcode">Barcode</option>
+                <option value="name">Tên sản phẩm</option>
+                <option value="quantity">SL nhập</option>
+                <option value="status">Trạng thái</option>
+              </select>
+              {sortBy && (
+                <button
+                  onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")}
+                  className="bg-card border border-border rounded-[6px] px-[8px] py-[6px] text-primary text-[12px] cursor-pointer"
+                  title={sortDir === "asc" ? "Tăng dần" : "Giảm dần"}
+                >
+                  {sortDir === "asc" ? "▲" : "▼"}
+                </button>
+              )}
+            </div>
             <div className="text-[13px] text-subtle">
               Tổng: <strong className="text-success">
                 {fmtCur(rows.reduce((s, r) => s + (r.quantity * (r.unitPrice || 0)), 0))}
@@ -222,19 +317,33 @@ export default function ImportPage({ onRefresh, userWarehouseCode = null }) {
             </Btn>
           </div>
 
-          {/* Review table */}
-          <div className="card overflow-hidden">
+          {/* Review table — màn rộng (≥768px) */}
+          <div className="card overflow-hidden hidden md:block">
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-xs min-w-[900px]">
                 <thead>
                   <tr className="bg-border">
-                    {["#", "Mã phiếu", "Barcode", "Tên sản phẩm", "SL nhập", "Đơn giá", "Thành tiền", "Kho", "Vị trí", "Trạng thái"].map(h => (
-                      <th key={h} className="p-[10px_12px] text-label font-bold text-[10px] tracking-[0.5px] text-left whitespace-nowrap">{h}</th>
-                    ))}
+                    {["#", "Mã phiếu", "Barcode", "Tên sản phẩm", "SL nhập", "Đơn giá", "Thành tiền", "Kho", "Vị trí", "Trạng thái"].map(h => {
+                      const key = { "Barcode": "barcode", "Tên sản phẩm": "name", "SL nhập": "quantity", "Trạng thái": "status" }[h];
+                      return (
+                        <th
+                          key={h}
+                          onClick={key ? () => toggleSort(key) : undefined}
+                          className={`p-[10px_12px] text-label font-bold text-[10px] tracking-[0.5px] text-left whitespace-nowrap ${key ? "cursor-pointer select-none hover:text-heading" : ""}`}
+                        >
+                          {h}
+                          {key && (
+                            <span className="ml-1 inline-block w-[9px] text-primary">
+                              {sortBy === key ? (sortDir === "asc" ? "▲" : "▼") : ""}
+                            </span>
+                          )}
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row, i) => (
+                  {displayRows.map(({ row, i }) => (
                     <tr
                       key={i}
                       className={`border-b border-border ${row.isNew ? "bg-warning/[0.03]" : i % 2 === 0 ? "" : "bg-[#0a101a]"
@@ -282,7 +391,7 @@ export default function ImportPage({ onRefresh, userWarehouseCode = null }) {
 
                       {/* Kho */}
                       <td className="p-[8px_12px]">
-                        <span className="bg-primary/[0.13] text-primary-light rounded-[6px] px-[10px] py-[4px] text-xs font-bold">
+                        <span className="whitespace-nowrap bg-primary/[0.13] text-primary-light rounded-[6px] px-[10px] py-[4px] text-xs font-bold">
                           {warehouses.find(w => w.id === selectedWHId)?.code || "—"}
                         </span>
                       </td>
@@ -305,14 +414,90 @@ export default function ImportPage({ onRefresh, userWarehouseCode = null }) {
                       {/* Trạng thái */}
                       <td className="p-[8px_12px]">
                         {row.isNew
-                          ? <span className="bg-warning/[0.13] text-warning border border-warning/[0.27] rounded-[6px] px-[9px] py-[2px] text-[10px] font-bold">MỚI</span>
-                          : <span className="bg-success/[0.13] text-success border border-success/[0.27] rounded-[6px] px-[9px] py-[2px] text-[10px] font-bold">CÓ SẴN</span>}
+                          ? <span className="whitespace-nowrap bg-warning/[0.13] text-warning border border-warning/[0.27] rounded-[6px] px-[9px] py-[2px] text-[10px] font-bold">MỚI</span>
+                          : <span className="whitespace-nowrap bg-success/[0.13] text-success border border-success/[0.27] rounded-[6px] px-[9px] py-[2px] text-[10px] font-bold">CÓ SẴN</span>}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* Review cards — màn hẹp (<768px), thay cho cuộn ngang */}
+          <div className="md:hidden space-y-3">
+            {displayRows.map(({ row, i }) => {
+              const missingLocation = row.isNew && !row.location.trim();
+              return (
+                <div key={i} className={`card p-4 ${missingLocation ? "border-danger/40" : row.isNew ? "border-warning/30" : ""}`}>
+                  <div className="flex justify-between items-start gap-2 mb-3">
+                    <div className="min-w-0">
+                      <div className="font-mono text-primary font-bold text-sm">{row.barcode}</div>
+                      <div className="text-[13px] mt-[2px] break-words">
+                        {row.isNew
+                          ? <span className="text-warning">✦ {row.name || "(mã mới)"}</span>
+                          : <span className="text-body">{row.name}</span>}
+                      </div>
+                    </div>
+                    {row.isNew
+                      ? <span className="whitespace-nowrap shrink-0 bg-warning/[0.13] text-warning border border-warning/[0.27] rounded-[6px] px-[9px] py-[2px] text-[10px] font-bold">MỚI</span>
+                      : <span className="whitespace-nowrap shrink-0 bg-success/[0.13] text-success border border-success/[0.27] rounded-[6px] px-[9px] py-[2px] text-[10px] font-bold">CÓ SẴN</span>}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-[12px] mb-3">
+                    <div>
+                      <div className="text-subtle text-[10px] mb-[2px]">Mã phiếu</div>
+                      <div className="font-mono text-info font-bold">{row.refNo || "—"}</div>
+                    </div>
+                    <div>
+                      <div className="text-subtle text-[10px] mb-[2px]">Kho</div>
+                      <span className="whitespace-nowrap inline-block bg-primary/[0.13] text-primary-light rounded-[6px] px-[8px] py-[2px] text-xs font-bold">
+                        {warehouses.find(w => w.id === selectedWHId)?.code || "—"}
+                      </span>
+                    </div>
+                    <div>
+                      <div className="text-subtle text-[10px] mb-[2px]">Đơn giá</div>
+                      <div style={{ color: row.unitPrice > 0 ? "#94a3b8" : "#334155" }}>
+                        {row.unitPrice > 0 ? fmtCur(row.unitPrice) : "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-subtle text-[10px] mb-[2px]">Thành tiền</div>
+                      <div className={`font-bold ${(row.unitPrice || 0) > 0 ? "text-success" : "text-muted"}`}>
+                        {(row.unitPrice || 0) > 0 ? fmtCur(row.quantity * (row.unitPrice || 0)) : "—"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 items-end">
+                    <div>
+                      <div className="text-subtle text-[10px] mb-[4px]">SL nhập</div>
+                      <input
+                        type="number" min={1} value={row.quantity}
+                        onChange={e => updateRow(i, "quantity", Math.max(1, Number(e.target.value)))}
+                        className="bg-border border border-muted rounded-[6px] px-2 py-[6px] text-success text-sm font-bold text-center outline-none w-[76px]"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-subtle text-[10px] mb-[4px]">
+                        Vị trí {row.isNew && <span className="text-danger">*</span>}
+                      </div>
+                      <input
+                        type="text"
+                        value={row.location}
+                        onChange={e => updateRow(i, "location", e.target.value)}
+                        placeholder={row.isNew ? "Bắt buộc" : "Tuỳ chọn"}
+                        className="w-full rounded-[6px] px-[10px] py-[6px] text-heading text-sm font-mono outline-none"
+                        style={{
+                          background: missingLocation ? "rgba(239,68,68,.08)" : "#1e293b",
+                          border: `1px solid ${missingLocation ? "#ef4444" : "#334155"}`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {hasErrors && (

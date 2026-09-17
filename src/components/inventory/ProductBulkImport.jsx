@@ -10,8 +10,8 @@ import { downloadProductBulkTemplate } from "../../utils/excelImport";
 
 const STATUS_LABEL = {
     new: { text: "Sản phẩm mới", color: "#22c55e" },
-    exists_update: { text: "Đã có — bổ sung thông tin thiếu", color: "#3b82f6" },
-    exists_skip: { text: "Đã có — bỏ qua", color: "#94a3b8" },
+    exists_update: { text: "Đã có", color: "#3b82f6" },
+    exists_skip: { text: "Đã có", color: "#94a3b8" },
     error: { text: "Lỗi", color: "#ef4444" },
 };
 
