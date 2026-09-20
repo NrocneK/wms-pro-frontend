@@ -4,6 +4,8 @@ import { BrowserRouter, useNavigate, useLocation } from "react-router-dom";
 import Sidebar from "./components/layout/Sidebar";
 import AppHeader from "./components/layout/AppHeader";
 import { useAuth } from "./hooks/useAuth";
+import { useCatalogSync } from "./hooks/useCatalogSync";
+import { useOfflineSync } from "./hooks/useOfflineSync";
 import { useInventory } from "./hooks/useInventory";
 
 // Mỗi trang được tách thành 1 chunk JS riêng, chỉ tải khi người dùng thực sự
@@ -67,6 +69,8 @@ function AppInner() {
 
   const { user, setUser, authChecked, handleLogin, handleLogout } = useAuth();
   const { products, loading, apiError, loadInventory } = useInventory(user);
+  useCatalogSync(!!user); // đồng bộ Danh Mục Sản Phẩm về máy để tra cứu offline
+  useOfflineSync(!!user); // tự gửi lại hàng đợi thao tác offline khi có mạng lại
 
   const [transactions, setTxns] = useState([]);
   const [sidebarOpen, setSidebar] = useState(true);

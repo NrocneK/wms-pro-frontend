@@ -4,6 +4,7 @@ import { Btn, Field, Inp, Sel, Modal } from "../ui";
 import Icon from "../ui/Icon";
 import { WAREHOUSES, UNITS } from "../../constants";
 import { productApi } from "../../services/productService";
+import { lookupOffline } from "../../utils/offlineDb";
 
 // Lazy-load: thư viện html5-qrcode khá nặng (~100kB+), chỉ tải khi người dùng
 // thực sự bấm nút quét camera, tránh làm phình bundle của trang Inventory
@@ -25,6 +26,7 @@ export default function ProductForm({ initial, onClose, onSave }) {
     });
     const [lookingUp, setLookingUp] = useState(false);
     const [foundInCatalog, setFoundInCatalog] = useState(!!initial);
+    const [fromOfflineCache, setFromOfflineCache] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
     // Lưu toàn bộ các dòng tồn kho trả về từ tra cứu barcode (mỗi dòng ứng với
     // 1 kho mà sản phẩm này đang có mặt) — dùng để tự động điền lại Vị trí nếu
@@ -48,6 +50,7 @@ export default function ProductForm({ initial, onClose, onSave }) {
     const lookupBarcode = async (code) => {
         if (initial || !code.trim()) return;
         setLookingUp(true);
+        setFromOfflineCache(false);
         try {
             const rows = await productApi.getByBarcode(code.trim());
             const list = Array.isArray(rows) ? rows : rows ? [rows] : [];
@@ -70,8 +73,27 @@ export default function ProductForm({ initial, onClose, onSave }) {
                 setFoundInCatalog(false);
             }
         } catch {
-            setCatalogRows([]);
-            setFoundInCatalog(false);
+            // Gọi API thất bại (nhiều khả năng do mất mạng) — thử tra trong bản
+            // cache offline (IndexedDB) trước khi kết luận "không tìm thấy".
+            // Lưu ý: cache không có số liệu tồn kho/vị trí (chỉ có ở Tồn Kho,
+            // không đồng bộ qua đây) nên không gọi applyLocationForWarehouse.
+            const cached = await lookupOffline(code.trim()).catch(() => null);
+            if (cached) {
+                setCatalogRows([cached]);
+                setF(x => ({
+                    ...x,
+                    barcode: code.trim(),
+                    name: cached.name,
+                    unit: cached.unit || x.unit,
+                    costPrice: cached.cost_price || x.costPrice,
+                    sellPrice: cached.sell_price || x.sellPrice,
+                }));
+                setFoundInCatalog(true);
+                setFromOfflineCache(true);
+            } else {
+                setCatalogRows([]);
+                setFoundInCatalog(false);
+            }
         } finally {
             setLookingUp(false);
         }
@@ -135,8 +157,13 @@ export default function ProductForm({ initial, onClose, onSave }) {
                         )}
                     </div>
                     {lookingUp && <div className="text-[11px] text-primary mt-1">Đang tra cứu danh mục...</div>}
-                    {!lookingUp && foundInCatalog && !initial && (
+                    {!lookingUp && foundInCatalog && !initial && !fromOfflineCache && (
                         <div className="text-[11px] text-success mt-1">✓ Đã tìm thấy trong danh mục — tự động điền thông tin</div>
+                    )}
+                    {!lookingUp && foundInCatalog && !initial && fromOfflineCache && (
+                        <div className="text-[11px] text-warning mt-1">
+                            ✓ Tìm thấy trong dữ liệu đã lưu offline (không có mạng) — kiểm tra lại giá khi có mạng trở lại
+                        </div>
                     )}
                 </Field>
                 <Field label="Đơn vị">

@@ -10,6 +10,8 @@ export const exportApi = {
     getPacking: () => request("GET", "/exports/packing"),
     getBatchTickets: (id) => request("GET", `/exports/${id}/packing-tickets`),
     getTicketItems: (id, refNo) => request("GET", `/exports/${id}/packing-tickets/${refNo}/items`),
-    updateActualQuantity: (itemId, quantity) => request("PUT", `/exports/items/${itemId}/actual-quantity`, { quantity }),
+    // body: { quantity } cho sửa tay (ghi đè tuyệt đối), hoặc
+    // { delta, idempotencyKey } cho hành động quét (cộng dồn, an toàn gửi lại).
+    updateActualQuantity: (itemId, body) => request("PUT", `/exports/items/${itemId}/actual-quantity`, body),
     cancel: (id) => request("POST", `/exports/${id}/cancel`),
 };

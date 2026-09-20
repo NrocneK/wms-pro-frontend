@@ -1,10 +1,16 @@
 // src/components/export/PackingAccordion.jsx
 // "Đang soạn hàng" — 3 cấp. Tách từ ExportPage.jsx (dòng 623-768 bản gốc
 // trước Phase 3) — KHÔNG đổi JSX.
+import { lazy, Suspense, useState, useEffect } from "react";
 import Icon from "../ui/Icon";
 import { Btn } from "../ui";
 import { fmtDate, fmtNum, fmtCur } from "../../utils/helpers";
 import { bookstoreName } from "../../constants";
+import { countPendingActions } from "../../utils/offlineDb";
+
+// Cùng lazy-load với ProductForm.jsx — html5-qrcode khá nặng, chỉ tải khi
+// thực sự bấm quét.
+const BarcodeScannerModal = lazy(() => import("../inventory/BarcodeScannerModal"));
 
 export default function PackingAccordion({ packing }) {
     const {
@@ -12,8 +18,19 @@ export default function PackingAccordion({ packing }) {
         openBatchId, batchTickets, loadingTickets, toggleBatch,
         openTicketKey, ticketItems, loadingItems, toggleTicket,
         savingQty, updateActualQtyLocal, saveActualQty,
+        scanningKey, setScanningKey, handlePackingScan, online,
         reprinting, confirmBatch, cancelBatchAction, reprintBatch,
     } = packing;
+
+    // Đếm lại số thao tác đang chờ mỗi khi trạng thái mạng đổi hoặc vừa quét
+    // xong 1 mã — chỉ để hiển thị, không ảnh hưởng logic đồng bộ thật (nằm
+    // trong syncEngine.js, chạy riêng khi có mạng lại).
+    const [pendingCount, setPendingCount] = useState(0);
+    useEffect(() => {
+        countPendingActions().then(setPendingCount);
+        const id = setInterval(() => countPendingActions().then(setPendingCount), 3000);
+        return () => clearInterval(id);
+    }, [online]);
 
     return (
         <div className="card overflow-hidden">
@@ -84,6 +101,36 @@ export default function PackingAccordion({ packing }) {
                                                                 {/* ── Cấp 3: Chi tiết sản phẩm ── */}
                                                                 {isTOpen && (
                                                                     <div className="border-t border-border bg-app/60 px-[14px] py-3">
+                                                                        <div className="flex justify-between items-center mb-2 gap-2">
+                                                                            <div className="flex items-center gap-2 text-[11px]">
+                                                                                {!online && (
+                                                                                    <span className="text-danger font-bold">● Mất mạng — thao tác quét sẽ tự đồng bộ khi có mạng lại</span>
+                                                                                )}
+                                                                                {pendingCount > 0 && (
+                                                                                    <span className="bg-warning/[0.13] text-warning border border-warning/[0.27] rounded-[6px] px-2 py-[2px] font-bold">
+                                                                                        {pendingCount} thao tác chờ đồng bộ
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                            <Btn
+                                                                                onClick={() => setScanningKey(tKey)}
+                                                                                color="#6366f1" outline
+                                                                                style={{ padding: "6px 12px", fontSize: 12 }}
+                                                                            >
+                                                                                <Icon name="scan" size={13} /> Quét mã để soạn
+                                                                            </Btn>
+                                                                        </div>
+                                                                        {scanningKey === tKey && (
+                                                                            <Suspense fallback={null}>
+                                                                                <BarcodeScannerModal
+                                                                                    onDetected={(code) => {
+                                                                                        setScanningKey(null);
+                                                                                        handlePackingScan(tKey, code);
+                                                                                    }}
+                                                                                    onClose={() => setScanningKey(null)}
+                                                                                />
+                                                                            </Suspense>
+                                                                        )}
                                                                         {loadingItems === tKey ? (
                                                                             <div className="text-center text-subtle text-xs py-3">Đang tải sản phẩm...</div>
                                                                         ) : (

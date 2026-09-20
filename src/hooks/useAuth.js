@@ -1,69 +1,40 @@
 // src/hooks/useAuth.js
-// Toàn bộ logic xác thực: kiểm tra token khi vào app, login, logout,
-// và tự động refresh token trước khi hết hạn 5 phút.
+// Toàn bộ logic xác thực: kiểm tra phiên đăng nhập khi vào app, login, logout.
+// Token nằm trong cookie httpOnly — hook này không còn đọc/ghi token trực tiếp.
+// Việc tự làm mới access token khi hết hạn giờ nằm ở http.js (request() tự
+// gọi /auth/refresh khi gặp 401 rồi thử lại request gốc), không cần hẹn giờ
+// trước ở đây nữa vì không còn cách nào đọc được thời điểm hết hạn từ client.
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { authApi } from "../services/authService";
-import { getToken, getTokenExp } from "../services/http";
 
 export function useAuth() {
     const [user, setUser] = useState(null);
     const [authChecked, setChecked] = useState(false);
 
-    const refreshTimerRef = useRef(null);
-    const scheduleTokenRefreshRef = useRef(null);
-
-    const handleLogout = useCallback(() => {
-        clearTimeout(refreshTimerRef.current);
-        authApi.logout();
+    const handleLogout = useCallback(async () => {
+        try { await authApi.logout(); } catch { /* dù lỗi mạng cũng vẫn coi như đã đăng xuất ở phía client */ }
         setUser(null);
     }, []);
 
-    const scheduleTokenRefresh = useCallback((token) => {
-        clearTimeout(refreshTimerRef.current);
-        const exp = getTokenExp(token);
-        if (!exp) return;
-        const delay = exp - Date.now() - 5 * 60 * 1000;
-        if (delay <= 0) {
-            handleLogout();
-            return;
-        }
-        refreshTimerRef.current = setTimeout(async () => {
-            try {
-                const data = await authApi.refresh();
-                scheduleTokenRefreshRef.current(data.token);
-            } catch {
-                handleLogout();
-            }
-        }, delay);
-    }, [handleLogout]);
-
-    useEffect(() => {
-        scheduleTokenRefreshRef.current = scheduleTokenRefresh;
-    }, [scheduleTokenRefresh]);
-
     const handleLogin = useCallback((userData) => {
         setUser(userData);
-        scheduleTokenRefresh(getToken());
-    }, [scheduleTokenRefresh]);
+    }, []);
 
-    // Kiểm tra token có sẵn khi load lại trang (F5, mở tab mới...)
+    // Kiểm tra phiên đăng nhập khi load lại trang (F5, mở tab mới...) — cookie
+    // (nếu còn hạn) tự động gửi kèm request này, không cần đọc gì từ client.
     useEffect(() => {
         const check = async () => {
-            const token = getToken();
-            if (token) {
-                try {
-                    const me = await authApi.me();
-                    setUser(me);
-                    scheduleTokenRefresh(token);
-                } catch {
-                    /* token invalid → login */
-                }
+            try {
+                const me = await authApi.me();
+                setUser(me);
+            } catch {
+                /* chưa đăng nhập hoặc cookie hết hạn → giữ nguyên user = null */
             }
             setChecked(true);
         };
         check();
-    }, [scheduleTokenRefresh]);
+    }, []);
 
     return { user, setUser, authChecked, handleLogin, handleLogout };
 }

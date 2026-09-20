@@ -5,8 +5,20 @@
 import { useState, useEffect } from "react";
 import { exportApi } from "../services/exportService";
 import { fmtDate } from "../utils/helpers";
+import { useOnlineStatus } from "./useOnlineStatus";
+import { queueAction } from "../utils/offlineDb";
+
+// Mã vạch in trên sản phẩm thường là EAN-13 (12 số dữ liệu + 1 số kiểm tra) —
+// hệ thống lưu 12 số, nên quét ra đủ 13 số thì cắt bỏ số cuối. Cùng quy tắc
+// với ProductForm.jsx (normalizeScannedBarcode) — giữ 1 chỗ định nghĩa để
+// tránh 2 nơi lệch nhau, xem ghi chú đầy đủ ở ProductForm.jsx.
+const normalizeScannedBarcode = (code) => {
+    const trimmed = code.trim();
+    return trimmed.length === 13 ? trimmed.slice(0, -1) : trimmed;
+};
 
 export function useExportPacking({ onRefresh, showAlert, showConfirm, setPickSlip }) {
+    const online = useOnlineStatus();
     const [packingBatches, setPackingBatches] = useState([]);
     const [loadingPacking, setLoadingPacking] = useState(true);
 
@@ -19,6 +31,51 @@ export function useExportPacking({ onRefresh, showAlert, showConfirm, setPickSli
     const [loadingItems, setLoadingItems] = useState(null);
     const [savingQty, setSavingQty] = useState(null);
     const [reprinting, setReprinting] = useState(null);
+    const [scanningKey, setScanningKey] = useState(null); // tKey đang mở scanner để soạn, null = đóng
+
+    // Quét ra 1 mã trong lúc soạn hàng (Cấp 3 đang mở) — tìm đúng dòng sản
+    // phẩm khớp barcode trong phiếu xuất đang soạn, rồi CỘNG THÊM 1 vào SL
+    // thực tế (giống thao tác lượm 1 đơn vị hàng, quét thêm 1 lần = +1).
+    // Dùng lại NGUYÊN VẸN updateActualQtyLocal + saveActualQty bên dưới —
+    // đây chính là điểm nối để Giai đoạn 3 (hàng đợi offline) sau này chỉ
+    // cần thay ruột saveActualQty, không phải sửa lại chỗ gọi.
+    const handlePackingScan = async (tKey, rawCode) => {
+        const code = normalizeScannedBarcode(rawCode);
+        const items = ticketItems[tKey] || [];
+        const item = items.find((it) => it.barcode === code);
+        if (!item) {
+            showAlert(`Không tìm thấy mã "${code}" trong phiếu xuất này.`, "warning");
+            return;
+        }
+        // Cập nhật giao diện ngay lập tức (lạc quan) — không đợi server, để
+        // người quét thấy phản hồi tức thì kể cả khi đang mất mạng.
+        const newQty = (Number(item.quantity) || 0) + 1;
+        updateActualQtyLocal(tKey, item.id, newQty);
+
+        // idempotencyKey sinh NGAY TẠI ĐÂY — 1 LẦN DUY NHẤT cho hành động
+        // "quét này" — dù phải gửi lại nhiều lần sau (mất mạng, sync lại...)
+        // vẫn dùng đúng key này, không sinh mới mỗi lần gửi.
+        const idempotencyKey = crypto.randomUUID();
+        const action = { type: "export_scan", itemId: item.id, delta: 1, idempotencyKey };
+
+        if (!online) {
+            await queueAction(action);
+            showAlert(`Đã ghi nhận (chờ đồng bộ): +1 "${item.name}"`, "info");
+            return;
+        }
+        try {
+            await exportApi.updateActualQuantity(item.id, { delta: 1, idempotencyKey });
+        } catch (err) {
+            if (err.isNetworkError) {
+                // Tưởng còn mạng nhưng thực ra vừa mất ngay lúc gửi — đưa vào
+                // hàng đợi thay vì báo lỗi và làm mất thao tác của người dùng.
+                await queueAction(action);
+                showAlert(`Mất mạng giữa chừng — đã ghi nhận (chờ đồng bộ): +1 "${item.name}"`, "warning");
+            } else {
+                showAlert("Lưu số lượng thất bại: " + err.message);
+            }
+        }
+    };
 
     const loadPackingBatches = () => {
         let active = true;
@@ -78,7 +135,7 @@ export function useExportPacking({ onRefresh, showAlert, showConfirm, setPickSli
         const qty = Math.max(0, Number(val) || 0);
         setSavingQty(itemId);
         try {
-            await exportApi.updateActualQuantity(itemId, qty);
+            await exportApi.updateActualQuantity(itemId, { quantity: qty });
         } catch (err) {
             showAlert("Lưu số lượng thất bại: " + err.message);
         } finally {
@@ -172,6 +229,7 @@ export function useExportPacking({ onRefresh, showAlert, showConfirm, setPickSli
         openBatchId, batchTickets, loadingTickets, toggleBatch,
         openTicketKey, ticketItems, loadingItems, toggleTicket,
         savingQty, updateActualQtyLocal, saveActualQty,
+        scanningKey, setScanningKey, handlePackingScan, online,
         reprinting, confirmBatch, cancelBatchAction, reprintBatch,
     };
 }
